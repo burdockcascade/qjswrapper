@@ -46,9 +46,9 @@ namespace qjs {
         }
 
         std::expected<std::string, std::string> eval(std::string_view code) {
-            JSValue val = JS_Eval(ctx_.get(), code.data(), code.size(), "input.js", JS_EVAL_TYPE_GLOBAL);
+            const JSValue val = JS_Eval(ctx_.get(), code.data(), code.size(), "input.js", JS_EVAL_TYPE_GLOBAL);
             if (JS_IsException(val)) {
-                JSValue exception = JS_GetException(ctx_.get());
+                const JSValue exception = JS_GetException(ctx_.get());
                 std::string err = converter<std::string>::get(ctx_.get(), exception);
                 JS_FreeValue(ctx_.get(), exception);
                 return std::unexpected(err);
@@ -115,8 +115,8 @@ namespace qjs {
             JS_FreeValue(ctx_.get(), data);
         }
 
-        struct RuntimeDeleter { void operator()(JSRuntime* rt) { JS_FreeRuntime(rt); } };
-        struct ContextDeleter { void operator()(JSContext* ctx) { JS_FreeContext(ctx); } };
+        struct RuntimeDeleter { void operator()(JSRuntime* rt) const { JS_FreeRuntime(rt); } };
+        struct ContextDeleter { void operator()(JSContext* ctx) const { JS_FreeContext(ctx); } };
 
         std::unique_ptr<JSRuntime, RuntimeDeleter> rt_;
         std::unique_ptr<JSContext, ContextDeleter> ctx_;
@@ -140,14 +140,18 @@ int main() {
 
     engine.bind("add2", cpp_add);
 
-    engine.bind("greet", [](std::string name) {
+    engine.bind("greet", [](const std::string& name) {
         return "Hello from C++, " + name + "!";
     });
 
-    auto res1 = engine.eval("add2(10, 32)");
-    auto res2 = engine.eval("greet('Gemini')");
+    const auto res1 = engine.eval("add2(10, 32)");
+    const auto res2 = engine.eval("greet('Gemini')");
 
-    if (res1) std::cout << "Result 1: " << *res1 << "\n"; // 42
+    if (res1) {
+        std::cout << "Result 1: " << *res1 << "\n"; // 42
+    } else {
+        std::cout << "Error: " << *res1 << "\n";
+    }
     if (res2) std::cout << "Result 2: " << *res2 << "\n"; // Hello from C++, Gemini!
 
     return 0;
