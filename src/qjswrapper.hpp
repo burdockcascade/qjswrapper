@@ -19,77 +19,38 @@ namespace qjs {
 
     template<typename T>
     struct converter {
-
-        // --- FROM JS (Get from JS) ---
         static T get(JSContext* ctx, JSValueConst v) {
-            // 1. Handle Integers/Enums
-            if constexpr (std::integral<T>) {
-                if constexpr (std::is_same_v<T, bool>) {
-                    if (!JS_IsBool(v)) {
-                        JS_ThrowTypeError(ctx, "Type mismatch: expected boolean");
-                    }
-                    return JS_ToBool(ctx, v);
-                } else {
-                    // Strict check: Is it actually a number?
-                    if (!JS_IsNumber(v)) {
-                        JS_ThrowTypeError(ctx, "Type mismatch: expected number for integral type");
-                        return T{0};
-                    }
-                    int32_t val = 0;
-                    if (JS_ToInt32(ctx, &val, v) < 0) {
-                        // This handles cases where the value is a number but out of range
-                        return T{0};
-                    }
-                    return static_cast<T>(val);
-                }
-            }
-            // 2. Handle Floating Point
-            else if constexpr (std::floating_point<T>) {
-                if (!JS_IsNumber(v)) {
-                    JS_ThrowTypeError(ctx, "Type mismatch: expected number for floating point");
-                    return T{0};
-                }
+            if constexpr (std::is_same_v<T, bool>) {
+                return JS_ToBool(ctx, v);
+            } else if constexpr (std::integral<T>) {
+                int32_t val = 0;
+                JS_ToInt32(ctx, &val, v);
+                return static_cast<T>(val);
+            } else if constexpr (std::floating_point<T>) {
                 double val = 0;
                 JS_ToFloat64(ctx, &val, v);
                 return static_cast<T>(val);
-            }
-            // 3. Handle Strings
-            else if constexpr (std::is_convertible_v<T, std::string>) {
-                if (!JS_IsString(v) && !JS_IsSymbol(v)) {
-                    JS_ThrowTypeError(ctx, "Type mismatch: expected string");
-                    return "";
-                }
+            } else if constexpr (std::is_convertible_v<T, std::string>) {
                 size_t len;
                 const char* str = JS_ToCStringLen(ctx, &len, v);
                 std::string s(str ? str : "", len);
                 JS_FreeCString(ctx, str);
                 return s;
             }
-            else {
-                static_assert(sizeof(T) == 0, "Unsupported type for QJS conversion");
-            }
             return T{};
         }
 
-        // --- TO JS (Put into JS) ---
         static JSValue put(JSContext* ctx, const T& val) {
-            if constexpr (std::integral<T>) {
-                if constexpr (std::is_same_v<T, bool>) {
-                    return JS_NewBool(ctx, val);
-                } else {
-                    return JS_NewInt32(ctx, static_cast<int32_t>(val));
-                }
-            }
-            else if constexpr (std::floating_point<T>) {
+            if constexpr (std::is_same_v<T, bool>) {
+                return JS_NewBool(ctx, val);
+            } else if constexpr (std::integral<T>) {
+                return JS_NewInt32(ctx, static_cast<int32_t>(val));
+            } else if constexpr (std::floating_point<T>) {
                 return JS_NewFloat64(ctx, static_cast<double>(val));
-            }
-            else if constexpr (std::is_convertible_v<T, std::string_view>) {
-                // Note: std::string also hits this branch
+            } else if constexpr (std::is_convertible_v<T, std::string_view>) {
                 return JS_NewStringLen(ctx, val.data(), val.size());
             }
-            else {
-                return JS_UNDEFINED;
-            }
+            return JS_UNDEFINED;
         }
     };
 

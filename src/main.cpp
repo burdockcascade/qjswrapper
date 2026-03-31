@@ -161,13 +161,12 @@ int test_raylib() {
         DrawText(text.c_str(), x, y, size, c);
     });
 
-    engine.register_class<Player>("Player")
-        .constructor<std::string>()
-        .method("heal", &Player::heal)
-        .method("getHealth", &Player::get_health);
-
-    engine.register_class<Timer>("Timer")
-      .method("reset", &Timer::reset);
+    engine.register_class<Color>("Color")
+        .constructor<unsigned char, unsigned char, unsigned char, unsigned char>()
+        .field("r", &Color::r)
+        .field("g", &Color::g)
+        .field("b", &Color::b)
+        .field("a", &Color::a);
 
     // 3. Main Game Loop
     while (!WindowShouldClose()) {
@@ -190,5 +189,5 @@ int test_raylib() {
 
 // --- Usage ---
 int main() {
-    test_ship();
+    test_raylib();
 }
