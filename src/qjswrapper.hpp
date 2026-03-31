@@ -160,7 +160,7 @@ namespace qjs {
             };
 
             // 4. Register with QuickJS
-            JSValue js_func = JS_NewCFunctionData(ctx.get(), trampoline, sizeof...(Args), 0, 1, &data);
+            const JSValue js_func = JS_NewCFunctionData(ctx.get(), trampoline, sizeof...(Args), 0, 1, &data);
             JS_SetPropertyStr(ctx.get(), global_obj, name.data(), js_func);
 
             // Clean up the temporary JS wrapper for the pointer

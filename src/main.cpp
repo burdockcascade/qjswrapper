@@ -7,10 +7,10 @@ namespace qjs {
     struct converter<Color> {
         static Color get(JSContext* ctx, JSValueConst v) {
             uint32_t r, g, b, a;
-            JSValue r_val = JS_GetPropertyStr(ctx, v, "r");
-            JSValue g_val = JS_GetPropertyStr(ctx, v, "g");
-            JSValue b_val = JS_GetPropertyStr(ctx, v, "b");
-            JSValue a_val = JS_GetPropertyStr(ctx, v, "a");
+            const JSValue r_val = JS_GetPropertyStr(ctx, v, "r");
+            const JSValue g_val = JS_GetPropertyStr(ctx, v, "g");
+            const JSValue b_val = JS_GetPropertyStr(ctx, v, "b");
+            const JSValue a_val = JS_GetPropertyStr(ctx, v, "a");
 
             JS_ToUint32(ctx, &r, r_val);
             JS_ToUint32(ctx, &g, g_val);
@@ -23,7 +23,7 @@ namespace qjs {
             return Color{static_cast<unsigned char>(r), static_cast<unsigned char>(g), static_cast<unsigned char>(b), static_cast<unsigned char>(a)};
         }
         static JSValue put(JSContext* ctx, Color val) {
-            JSValue obj = JS_NewObject(ctx);
+            const JSValue obj = JS_NewObject(ctx);
             JS_SetPropertyStr(ctx, obj, "r", JS_NewInt32(ctx, val.r));
             JS_SetPropertyStr(ctx, obj, "g", JS_NewInt32(ctx, val.g));
             JS_SetPropertyStr(ctx, obj, "b", JS_NewInt32(ctx, val.b));
@@ -36,15 +36,15 @@ namespace qjs {
     struct converter<Vector2> {
         static Vector2 get(JSContext* ctx, JSValueConst v) {
             double x, y;
-            JSValue x_val = JS_GetPropertyStr(ctx, v, "x");
-            JSValue y_val = JS_GetPropertyStr(ctx, v, "y");
+            const JSValue x_val = JS_GetPropertyStr(ctx, v, "x");
+            const JSValue y_val = JS_GetPropertyStr(ctx, v, "y");
             JS_ToFloat64(ctx, &x, x_val);
             JS_ToFloat64(ctx, &y, y_val);
             JS_FreeValue(ctx, x_val); JS_FreeValue(ctx, y_val);
             return Vector2{static_cast<float>(x), static_cast<float>(y)};
         }
         static JSValue put(JSContext* ctx, Vector2 val) {
-            JSValue obj = JS_NewObject(ctx);
+            const JSValue obj = JS_NewObject(ctx);
             JS_SetPropertyStr(ctx, obj, "x", JS_NewFloat64(ctx, val.x));
             JS_SetPropertyStr(ctx, obj, "y", JS_NewFloat64(ctx, val.y));
             return obj;
@@ -54,7 +54,7 @@ namespace qjs {
 }
 
 
-int cpp_add(int a, int b) {
+int cpp_add(const int a, const int b) {
     return a + b;
 }
 
@@ -72,6 +72,7 @@ int run_math() {
     } else {
         std::cerr << "JS Error: " << res.error() << "\n";
     }
+    return 0;
 }
 
 int run_raylib() {
