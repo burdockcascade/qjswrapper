@@ -155,6 +155,29 @@ namespace qjs {
         }
         ~Engine() { JS_FreeValue(ctx.get(), global_obj); }
 
+        // == Run
+
+        std::expected<std::string, std::string> eval(std::string_view code, std::string_view file = "eval.js") const {
+            return wrap_result(JS_Eval(ctx.get(), code.data(), code.size(), file.data(), JS_EVAL_TYPE_GLOBAL));
+        }
+
+        std::expected<std::string, std::string> run_file(const std::filesystem::path& p) const {
+            std::ifstream f(p);
+            if (!f) return std::unexpected("File not found: " + p.string());
+            std::stringstream b;
+            b << f.rdbuf();
+            return eval(b.str(), p.filename().string());
+        }
+
+        std::expected<std::string, std::string> run_bytecode(const uint8_t* bytecode, size_t len) const {
+            const JSValue obj = JS_ReadObject(ctx.get(), bytecode, len, JS_READ_OBJ_BYTECODE);
+            if (JS_IsException(obj)) return wrap_result(obj);
+            return wrap_result(JS_EvalFunction(ctx.get(), obj));
+        }
+
+        // ===
+
+
         template <typename T> void track(std::unique_ptr<T> p) {
             allocations.emplace_back(p.release(), [](void* ptr) { delete static_cast<T*>(ptr); });
         }
@@ -170,25 +193,6 @@ namespace qjs {
             JSValue proto = JS_NewObject(ctx.get());
             JS_SetClassProto(ctx.get(), id, proto);
             return ClassBinder<T>(ctx.get(), proto, id, name, *this);
-        }
-
-        std::expected<std::string, std::string> eval(std::string_view code, std::string_view file = "eval.js") {
-            JSValue v = JS_Eval(ctx.get(), code.data(), code.size(), file.data(), JS_EVAL_TYPE_GLOBAL);
-            if (JS_IsException(v)) {
-                JSValue e = JS_GetException(ctx.get());
-                std::string msg = converter<std::string>::get(ctx.get(), e);
-                JS_FreeValue(ctx.get(), e);
-                return std::unexpected(msg);
-            }
-            std::string res = converter<std::string>::get(ctx.get(), v);
-            JS_FreeValue(ctx.get(), v);
-            return res;
-        }
-
-        std::expected<std::string, std::string> run_file(const std::filesystem::path& p) {
-            std::ifstream f(p); if (!f) return std::unexpected("File not found: " + p.string());
-            std::stringstream b; b << f.rdbuf();
-            return eval(b.str(), p.filename().string());
         }
 
         template<typename R, typename... Args>
@@ -220,6 +224,20 @@ namespace qjs {
                 return converter<R>::put(ctx, f(converter<std::decay_t<Args>>::get(ctx, argv[I])...));
             }
         }
+
+        std::expected<std::string, std::string> wrap_result(const JSValue v) const {
+            if (JS_IsException(v)) {
+                JSValue e = JS_GetException(ctx.get());
+                std::string msg = converter<std::string>::get(ctx.get(), e);
+                JS_FreeValue(ctx.get(), e);
+                JS_FreeValue(ctx.get(), v); // Ensure the original value is freed on error if needed
+                return std::unexpected(msg);
+            }
+            std::string res = converter<std::string>::get(ctx.get(), v);
+            JS_FreeValue(ctx.get(), v);
+            return res;
+        }
+
     };
 
     // --- Out-of-line Implementations ---

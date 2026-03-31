@@ -2,6 +2,7 @@
 
 #include "raylib.h"
 #include "qjswrapper.hpp"
+#include "js/ship.h"
 
 namespace qjs {
 
@@ -60,8 +61,7 @@ int cpp_add(const int a, const int b) {
     return a + b;
 }
 
-int test_math() {
-    qjs::Engine engine;
+int test_math(qjs::Engine &engine) {
 
     // Bind any C++ lambda
     engine.register_function("add", [](int a, int b) { return a + b; });
@@ -76,22 +76,6 @@ int test_math() {
     }
     return 0;
 }
-
-class Player {
-public:
-    Player(std::string name) : name(std::move(name)), health(100) {}
-    void heal(int amount) { health += amount; }
-    int get_health() const { return health; }
-
-private:
-    std::string name;
-    int health;
-};
-
-class Timer {
-public:
-    void reset() { /* ... */ }
-};
 
 class Ship {
 public:
@@ -117,18 +101,11 @@ public:
 
 };
 
-void add_console_utilities(qjs::Engine& engine) {
-    engine.register_function("print", [](std::string msg) {
-        std::cout << "[JS] " << msg << std::endl;
-    });
-    engine.eval("var console = { log: function(...args) { print(args.join(' ')); } };");
-}
 
 
-int test_ship() {
-    qjs::Engine engine;
 
-    add_console_utilities(engine);
+// this tests running bytecode
+int test_ship(qjs::Engine &engine) {
 
     // Register the class: Name is "Ship", Constructor takes (string, int)
     engine.register_class<Ship>("Ship")
@@ -141,19 +118,18 @@ int test_ship() {
 
     // Load the script from disk
 
-    if (auto result = engine.run_file(R"(C:\workspace\c\qjswrapper\src\ship.js)"); !result) {
+    if (auto result = engine.run_bytecode(qjsc_ship, qjsc_ship_size); !result) {
         std::cerr << "Script Error: " << result.error() << "\n";
     }
 
     return 0;
 }
 
-int test_raylib() {
+// this tests running a file with structs and functions
+int test_raylib(qjs::Engine &engine) {
     // 1. Setup Raylib
     InitWindow(800, 450, "QuickJS + Raylib File Loader");
     SetTargetFPS(60);
-
-    qjs::Engine engine;
 
     // 2. Bind the Raylib functions we need
     engine.register_function("clearBackground", ClearBackground);
@@ -186,7 +162,7 @@ int test_raylib() {
 
         // Execute the external script every frame
         // Note: In a real game, you'd likely load this once and call a JS 'update' function
-        auto result = engine.run_file(R"(C:\workspace\c\qjswrapper\src\game.js)");
+        auto result = engine.run_file(R"(C:\workspace\c\qjswrapper\src\js\game.js)");
 
         if (!result) {
             DrawText(result.error().c_str(), 10, 10, 20, RED);
@@ -199,7 +175,45 @@ int test_raylib() {
     return 0;
 }
 
+void add_console_utilities(qjs::Engine& engine) {
+    engine.register_function("print", [](std::string msg) {
+        std::cout << "[JS] " << msg << std::endl;
+    });
+    engine.eval("var console = { log: function(...args) { print(args.join(' ')); } };");
+}
+
 // --- Usage ---
-int main() {
-    test_ship();
+int main(int argc, char* argv[]) {
+    // Check if an argument was provided
+    if (argc < 2) {
+        std::cout << "Usage: qjs_test [test_name]\n";
+        std::cout << "Available tests: math, ship, raylib\n";
+        return 1;
+    }
+
+    // Convert the argument to a std::string for easy comparison
+    std::string test_to_run = argv[1];
+
+    qjs::Engine engine;
+
+    add_console_utilities(engine);
+
+    // Dispatch to the correct test function
+    if (test_to_run == "math") {
+        std::cout << "--- Running Math Test ---\n";
+        return test_math(engine);
+    }
+    else if (test_to_run == "ship") {
+        std::cout << "--- Running Ship Test ---\n";
+        return test_ship(engine);
+    }
+    else if (test_to_run == "raylib") {
+        std::cout << "--- Running Raylib Test ---\n";
+        return test_raylib(engine);
+    }
+    else {
+        std::cerr << "Unknown test: " << test_to_run << "\n";
+        std::cerr << "Try: math, ship, or raylib\n";
+        return 1;
+    }
 }
