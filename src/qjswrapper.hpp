@@ -93,6 +93,57 @@ namespace qjs {
             return method_impl<decltype(func), R, Args...>(name, func);
         }
 
+        template <typename V>
+        ClassBinder& field(std::string_view field_name, V T::*member) {
+            // 1. Store the member pointer and ClassID in a heap-allocated struct
+            struct FieldAccessor {
+                V T::*ptr;
+                JSClassID id;
+            };
+            auto* acc = new FieldAccessor{ member, class_id };
+
+            // 2. THE GETTER
+            auto getter_wrap = [](JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv, int magic, JSValue* data) -> JSValue {
+                int64_t ptr_addr;
+                JS_ToInt64(ctx, &ptr_addr, data[0]); // Extract the FieldAccessor pointer
+                auto* acc = reinterpret_cast<FieldAccessor*>(ptr_addr);
+
+                T* instance = static_cast<T*>(JS_GetOpaque(this_val, acc->id));
+                if (!instance) return JS_ThrowTypeError(ctx, "Invalid 'this' for field getter");
+
+                return converter<V>::put(ctx, instance->*(acc->ptr));
+            };
+
+            // 3. THE SETTER
+            auto setter_wrap = [](JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv, int magic, JSValue* data) -> JSValue {
+                int64_t ptr_addr;
+                JS_ToInt64(ctx, &ptr_addr, data[0]);
+                auto* acc = reinterpret_cast<FieldAccessor*>(ptr_addr);
+
+                T* instance = static_cast<T*>(JS_GetOpaque(this_val, acc->id));
+                if (!instance) return JS_ThrowTypeError(ctx, "Invalid 'this' for field setter");
+
+                // argv[0] is the value being assigned (e.g., ship.fuel = 100)
+                instance->*(acc->ptr) = converter<V>::get(ctx, argv[0]);
+                return JS_UNDEFINED;
+            };
+
+            // 4. Create the JS property
+            JSValue data_val = JS_NewInt64(ctx, reinterpret_cast<int64_t>(acc));
+
+            // QuickJS Getters take 0 args, Setters take 1
+            JSValue js_get = JS_NewCFunctionData(ctx, getter_wrap, 0, 0, 1, &data_val);
+            JSValue js_set = JS_NewCFunctionData(ctx, setter_wrap, 1, 0, 1, &data_val);
+
+            JSAtom atom = JS_NewAtom(ctx, field_name.data());
+            JS_DefinePropertyGetSet(ctx, proto, atom, js_get, js_set, JS_PROP_C_W_E);
+
+            JS_FreeAtom(ctx, atom);
+            JS_FreeValue(ctx, data_val); // We've copied the pointer into the Function Data
+
+            return *this;
+        }
+
         template <typename... Args>
         ClassBinder& constructor() {
             JSValue data = JS_NewInt64(ctx, static_cast<int64_t>(class_id));

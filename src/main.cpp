@@ -94,25 +94,25 @@ public:
 class Ship {
 public:
     // Constructor requires a string and an int
-    Ship(std::string name, int fuel) : name_(name), fuel_(fuel) {
-        std::cout << "[C++] Ship '" << name_ << "' constructed with " << fuel_ << " fuel.\n";
+    Ship(std::string name, int fuel) : name(name), fuel(fuel) {
+        std::cout << "[C++] Ship '" << name << "' constructed with " << fuel << " fuel.\n";
     }
 
     void fly(int distance) {
-        if (fuel_ >= distance) {
-            fuel_ -= distance;
-            std::cout << "[C++] " << name_ << " flew " << distance << " units. Fuel left: " << fuel_ << "\n";
+        if (fuel >= distance) {
+            fuel -= distance;
+            std::cout << "[C++] " << name << " flew " << distance << " units. Fuel left: " << fuel << "\n";
         } else {
-            std::cout << "[C++] " << name_ << " out of fuel!\n";
+            std::cout << "[C++] " << name << " out of fuel!\n";
         }
     }
 
-    int get_fuel() const { return fuel_; }
-    std::string get_name() const { return name_; }
+    int get_fuel() const { return fuel; }
+    std::string get_name() const { return name; }
 
-private:
-    std::string name_;
-    int fuel_;
+    std::string name;
+    int fuel;
+
 };
 
 void add_console_utilities(qjs::Engine& engine) {
@@ -133,7 +133,9 @@ int test_ship() {
         .constructor<std::string, int>()
         .method("fly", &Ship::fly)
         .method("getFuel", &Ship::get_fuel)
-        .method("getName", &Ship::get_name);
+        .method("getName", &Ship::get_name)
+        .field("fuel", &Ship::fuel)   // Bind the variable directly
+        .field("name", &Ship::name);
 
     // Load the script from disk
     auto result = engine.run_file(R"(C:\workspace\c\qjswrapper\src\ship.js)");
