@@ -91,6 +91,60 @@ public:
     void reset() { /* ... */ }
 };
 
+class Ship {
+public:
+    // Constructor requires a string and an int
+    Ship(std::string name, int fuel) : name_(name), fuel_(fuel) {
+        std::cout << "[C++] Ship '" << name_ << "' constructed with " << fuel_ << " fuel.\n";
+    }
+
+    void fly(int distance) {
+        if (fuel_ >= distance) {
+            fuel_ -= distance;
+            std::cout << "[C++] " << name_ << " flew " << distance << " units. Fuel left: " << fuel_ << "\n";
+        } else {
+            std::cout << "[C++] " << name_ << " out of fuel!\n";
+        }
+    }
+
+    int get_fuel() const { return fuel_; }
+    std::string get_name() const { return name_; }
+
+private:
+    std::string name_;
+    int fuel_;
+};
+
+void add_console_utilities(qjs::Engine& engine) {
+    engine.register_function("print", [](std::string msg) {
+        std::cout << "[JS] " << msg << std::endl;
+    });
+    engine.eval("var console = { log: function(...args) { print(args.join(' ')); } };");
+}
+
+
+int test_ship() {
+    qjs::Engine engine;
+
+    add_console_utilities(engine);
+
+    // Register the class: Name is "Ship", Constructor takes (string, int)
+    engine.register_class<Ship>("Ship")
+        .constructor<std::string, int>()
+        .method("fly", &Ship::fly)
+        .method("getFuel", &Ship::get_fuel)
+        .method("getName", &Ship::get_name);
+
+    // Load the script from disk
+    auto result = engine.run_file(R"(C:\workspace\c\qjswrapper\src\ship.js)");
+
+    if (!result) {
+        std::cerr << "Script Error: " << result.error() << "\n";
+    }
+
+    return 0;
+}
+
 int test_raylib() {
     // 1. Setup Raylib
     InitWindow(800, 450, "QuickJS + Raylib File Loader");
@@ -134,5 +188,5 @@ int test_raylib() {
 
 // --- Usage ---
 int main() {
-    test_raylib();
+    test_ship();
 }

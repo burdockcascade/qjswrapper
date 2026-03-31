@@ -81,95 +81,55 @@ namespace qjs {
         ClassBinder(JSContext* c, JSValue p, JSClassID id, std::string_view n)
                 : ctx(c), proto(p), class_id(id), name(n) {}
 
+        // Non-const version
         template <typename R, typename... Args>
-        ClassBinder& method(std::string_view method_name, R (T::*func)(Args...)) {
-            // 1. Create the C++ wrapper
-            auto wrapper = [func](T* instance, Args... args) -> R {
-                return (instance->*func)(args...);
-            };
+        ClassBinder& method(std::string_view name, R (T::*func)(Args...)) {
+            return method_impl<decltype(func), R, Args...>(name, func);
+        }
 
-            // 2. Store the wrapper in a stable heap location
-            using WrapperType = std::function<R(T*, Args...)>;
-            auto* f_ptr = new WrapperType(std::move(wrapper));
-
-            // 3. Create a "Data" value to pass the pointer into the trampoline
-            // We use JS_NewInt64 to smuggle the pointer address
-            JSValue data_val = JS_NewInt64(ctx, reinterpret_cast<int64_t>(f_ptr));
-
-            // 4. The Method Trampoline
-            auto method_trampoline = [](JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv, int magic, JSValue* data) -> JSValue {
-                // Recover the function pointer from the data array
-                int64_t ptr_addr;
-                JS_ToInt64(ctx, &ptr_addr, data[0]);
-                auto* f = reinterpret_cast<WrapperType*>(ptr_addr);
-
-                // Recover the Class ID (we can pass it as a second data element)
-                int64_t id_val;
-                JS_ToInt64(ctx, &id_val, data[1]);
-                JSClassID id = static_cast<JSClassID>(id_val);
-
-                // Get the C++ 'this' pointer from the JS 'this' object
-                T* instance = static_cast<T*>(JS_GetOpaque(this_val, id));
-
-                if (!instance) {
-                    return JS_ThrowTypeError(ctx, "Method called on invalid object (null instance)");
-                }
-
-                if (argc < sizeof...(Args)) {
-                    return JS_ThrowTypeError(ctx, "Argument mismatch: expected %zu", sizeof...(Args));
-                }
-
-                // Invoke using our helper
-                if constexpr (std::is_void_v<R>) {
-                    invoke_helper(ctx, instance, *f, argv, std::make_index_sequence<sizeof...(Args)>{});
-                    return JS_UNDEFINED;
-                } else {
-                    return converter<R>::put(ctx, invoke_helper(ctx, instance, *f, argv, std::make_index_sequence<sizeof...(Args)>{}));
-                }
-            };
-
-            // 5. Pack the Function Pointer and the ClassID into an array
-            JSValue data_array[2];
-            data_array[0] = data_val;
-            data_array[1] = JS_NewInt64(ctx, static_cast<int64_t>(class_id));
-
-            // 6. Create the JS function and attach it to the Prototype
-            JSValue js_method = JS_NewCFunctionData(ctx, method_trampoline, sizeof...(Args), 0, 2, data_array);
-            JS_SetPropertyStr(ctx, proto, method_name.data(), js_method);
-
-            // Cleanup temporary JS values
-            JS_FreeValue(ctx, data_array[0]);
-            JS_FreeValue(ctx, data_array[1]);
-
-            return *this;
+        // Const version
+        template <typename R, typename... Args>
+        ClassBinder& method(std::string_view name, R (T::*func)(Args...) const) {
+            return method_impl<decltype(func), R, Args...>(name, func);
         }
 
         template <typename... Args>
         ClassBinder& constructor() {
-            // Store the class_id so the trampoline can use it
             JSValue data = JS_NewInt64(ctx, static_cast<int64_t>(class_id));
 
             auto ctor_trampoline = [](JSContext* ctx, JSValueConst new_target, int argc, JSValueConst* argv, int magic, JSValue* data) -> JSValue {
+                // ... (your existing ctor_trampoline code) ...
+
+                // 1. IMPORTANT: Check if we are being called as a constructor
+                if (JS_IsUndefined(new_target)) {
+                    return JS_ThrowTypeError(ctx, "Class constructor cannot be invoked without 'new'");
+                }
+
                 int64_t id_val;
                 JS_ToInt64(ctx, &id_val, data[0]);
                 JSClassID id = static_cast<JSClassID>(id_val);
 
-                // Check argument count
-                if (argc < sizeof...(Args)) {
-                    return JS_ThrowTypeError(ctx, "Expected %zu arguments", sizeof...(Args));
-                }
-
-                // Call 'new T' with converted arguments
                 T* instance = ctor_helper<T, Args...>(ctx, argv, std::make_index_sequence<sizeof...(Args)>{});
 
-                // Wrap the C++ pointer in a JS Object tied to this ClassID
+                // 2. Create the object using the prototype of the new_target
+                // This ensures inheritance works correctly in JS
+                JSValue proto = JS_GetPropertyStr(ctx, new_target, "prototype");
                 JSValue obj = JS_NewObjectClass(ctx, id);
+                JS_SetPrototype(ctx, obj, proto);
+                JS_FreeValue(ctx, proto);
+
                 JS_SetOpaque(obj, instance);
                 return obj;
             };
 
-            // Register the constructor globally
+            // 3. Register as a Function Data
+            // Note: The 'length' (argc) is sizeof...(Args)
             JSValue ctor_func = JS_NewCFunctionData(ctx, ctor_trampoline, sizeof...(Args), 0, 1, &data);
+
+            // 4. SET THE CONSTRUCTOR FLAG
+            // This is the missing piece!
+            JS_SetConstructorBit(ctx, ctor_func, true);
+
             JSValue global = JS_GetGlobalObject(ctx);
             JS_SetPropertyStr(ctx, global, name.c_str(), ctor_func);
 
@@ -179,6 +139,72 @@ namespace qjs {
         }
 
     private:
+
+        template <typename M, typename R, typename... Args>
+        ClassBinder& method_impl(std::string_view method_name, M func) {
+            // 1. Create a signature-erased wrapper.
+            // We capture 'func' by value so it stays alive within the std::function.
+            using WrapperType = std::function<R(T*, Args...)>;
+            WrapperType* wrapper_ptr = new WrapperType([func](T* instance, Args... args) -> R {
+                return (instance->*func)(std::forward<Args>(args)...);
+            });
+
+            // 2. The Method Trampoline
+            // This is the C-style bridge QuickJS calls.
+            auto method_trampoline = [](JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv, int magic, JSValue* data) -> JSValue {
+                // Extract the function pointer (Smuggled as int64)
+                int64_t f_addr;
+                JS_ToInt64(ctx, &f_addr, data[0]);
+                auto* f = reinterpret_cast<WrapperType*>(f_addr);
+
+                // Extract the Class ID
+                int64_t id_val;
+                JS_ToInt64(ctx, &id_val, data[1]);
+                JSClassID id = static_cast<JSClassID>(id_val);
+
+                // Get the C++ 'this' instance from the JS object
+                T* instance = static_cast<T*>(JS_GetOpaque(this_val, id));
+
+                if (!instance) {
+                    return JS_ThrowTypeError(ctx, "Method called on incompatible object or null instance");
+                }
+
+                if (argc < sizeof...(Args)) {
+                    return JS_ThrowTypeError(ctx, "Argument mismatch: expected %zu", sizeof...(Args));
+                }
+
+                // 3. Invoke and convert return value
+                if constexpr (std::is_void_v<R>) {
+                    invoke_method_helper(ctx, instance, *f, argv, std::make_index_sequence<sizeof...(Args)>{});
+                    return JS_UNDEFINED;
+                } else {
+                    return converter<R>::put(ctx, invoke_method_helper(ctx, instance, *f, argv, std::make_index_sequence<sizeof...(Args)>{}));
+                }
+            };
+
+            // 4. Bundle data for the trampoline
+            JSValue data_array[2];
+            data_array[0] = JS_NewInt64(ctx, reinterpret_cast<int64_t>(wrapper_ptr));
+            data_array[1] = JS_NewInt64(ctx, static_cast<int64_t>(class_id));
+
+            // 5. Create the JS Function and attach to prototype
+            // We provide a "finalizer" for the CFunctionData if your QuickJS version supports it,
+            // otherwise, we'd store wrapper_ptr in the Engine's cleanup vector.
+            JSValue js_method = JS_NewCFunctionData(ctx, method_trampoline, sizeof...(Args), 0, 2, data_array);
+            JS_SetPropertyStr(ctx, proto, method_name.data(), js_method);
+
+            // Cleanup temporary JS handles
+            JS_FreeValue(ctx, data_array[0]);
+            JS_FreeValue(ctx, data_array[1]);
+
+            return *this;
+        }
+
+        template <typename R, typename... Args, size_t... I>
+        static R invoke_method_helper(JSContext* ctx, T* instance, std::function<R(T*, Args...)>& f,
+                                  JSValueConst* argv, std::index_sequence<I...>) {
+            return f(instance, converter<std::decay_t<Args>>::get(ctx, argv[I])...);
+        }
 
         template <typename R, typename... Args, size_t... I>
         static auto invoke_helper(JSContext* ctx, T* instance, std::function<R(T*, Args...)>& f,
