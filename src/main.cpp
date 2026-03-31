@@ -1,3 +1,5 @@
+#include <utility>
+
 #include "raylib.h"
 #include "qjswrapper.hpp"
 
@@ -77,9 +79,9 @@ int test_math() {
 
 class Player {
 public:
-    Player(std::string name) : name(name), health(100) {}
+    Player(std::string name) : name(std::move(name)), health(100) {}
     void heal(int amount) { health += amount; }
-    int get_health() { return health; }
+    int get_health() const { return health; }
 
 private:
     std::string name;
@@ -138,9 +140,8 @@ int test_ship() {
         .field("name", &Ship::name);
 
     // Load the script from disk
-    auto result = engine.run_file(R"(C:\workspace\c\qjswrapper\src\ship.js)");
 
-    if (!result) {
+    if (auto result = engine.run_file(R"(C:\workspace\c\qjswrapper\src\ship.js)"); !result) {
         std::cerr << "Script Error: " << result.error() << "\n";
     }
 
@@ -155,9 +156,9 @@ int test_raylib() {
     qjs::Engine engine;
 
     // 2. Bind the Raylib functions we need
-    engine.register_function("clearBackground", [](Color c) { ClearBackground(c); });
-    engine.register_function("drawCircle", [](int x, int y, float r, Color c) { DrawCircle(x, y, r, c); });
-    engine.register_function("drawText", [](std::string text, int x, int y, int size, Color c) {
+    engine.register_function("clearBackground", ClearBackground);
+    engine.register_function("drawCircleV", [](const Vector2 v2, float r, Color c) { DrawCircleV(v2, r, c); });
+    engine.register_function("drawText", [](const std::string& text, int x, int y, int size, Color c) {
         DrawText(text.c_str(), x, y, size, c);
     });
 
@@ -167,6 +168,17 @@ int test_raylib() {
         .field("g", &Color::g)
         .field("b", &Color::b)
         .field("a", &Color::a);
+
+    engine.register_class<Vector2>("Vector2")
+        .constructor<float, float>()
+        .field("x", &Vector2::x)
+        .field("y", &Vector2::y);
+
+    engine.register_class<Vector3>("Vector3")
+        .constructor<float, float, float>()
+        .field("x", &Vector3::x)
+        .field("y", &Vector3::y)
+        .field("z", &Vector3::z);
 
     // 3. Main Game Loop
     while (!WindowShouldClose()) {
@@ -189,5 +201,5 @@ int test_raylib() {
 
 // --- Usage ---
 int main() {
-    test_raylib();
+    test_ship();
 }

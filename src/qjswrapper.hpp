@@ -9,7 +9,6 @@
 #include <fstream>
 #include <sstream>
 #include <filesystem>
-#include <map>
 #include <typeindex>
 #include <concepts>
 
@@ -143,11 +142,11 @@ namespace qjs {
 
     // --- Main Engine ---
     class Engine {
-        struct RTDel { void operator()(JSRuntime* r) { JS_FreeRuntime(r); } };
-        struct CTDel { void operator()(JSContext* c) { JS_FreeContext(c); } };
+        struct RTDel { void operator()(JSRuntime* r) const { JS_FreeRuntime(r); } };
+        struct CTDel { void operator()(JSContext* c) const { JS_FreeContext(c); } };
         std::unique_ptr<JSRuntime, RTDel> rt;
         std::unique_ptr<JSContext, CTDel> ctx;
-        JSValue global_obj;
+        JSValue global_obj{};
         std::vector<std::unique_ptr<void, void(*)(void*)>> allocations;
 
     public:
@@ -165,7 +164,7 @@ namespace qjs {
             JSClassID id = 0; JS_NewClassID(rt.get(), &id);
             JSClassDef def = { name.data(), [](JSRuntime* rt, JSValue val) {
                 T* ptr = static_cast<T*>(JS_GetOpaque(val, 0));
-                if (ptr) delete ptr;
+                delete ptr;
             }};
             JS_NewClass(rt.get(), id, &def);
             JSValue proto = JS_NewObject(ctx.get());
@@ -201,7 +200,7 @@ namespace qjs {
 
             JSValue data = detail::NewPtr(raw);
             auto tramp = [](JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv, int magic, JSValue* data) -> JSValue {
-                auto* fn = reinterpret_cast<Func*>(detail::ToPtr(data[0]));
+                auto* fn = static_cast<Func*>(detail::ToPtr(data[0]));
                 return invoke_free_helper<R, Args...>(ctx, *fn, argv, std::make_index_sequence<sizeof...(Args)>{});
             };
             JS_SetPropertyStr(ctx.get(), global_obj, name.data(), JS_NewCFunctionData(ctx.get(), tramp, sizeof...(Args), 0, 1, &data));
@@ -234,14 +233,14 @@ namespace qjs {
         engine.track(std::move(acc));
 
         auto getter = [](JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv, int magic, JSValue* data) -> JSValue {
-            auto* acc = reinterpret_cast<FieldAccessor*>(detail::ToPtr(data[0]));
+            auto* acc = static_cast<FieldAccessor*>(detail::ToPtr(data[0]));
             T* instance = static_cast<T*>(JS_GetOpaque(this_val, acc->id));
             if (!instance) return JS_ThrowTypeError(ctx, "Invalid 'this' for field");
             return converter<V>::put(ctx, instance->*(acc->ptr));
         };
 
         auto setter = [](JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv, int magic, JSValue* data) -> JSValue {
-            auto* acc = reinterpret_cast<FieldAccessor*>(detail::ToPtr(data[0]));
+            auto* acc = static_cast<FieldAccessor*>(detail::ToPtr(data[0]));
             T* instance = static_cast<T*>(JS_GetOpaque(this_val, acc->id));
             if (!instance) return JS_ThrowTypeError(ctx, "Invalid 'this' for field");
             instance->*(acc->ptr) = converter<V>::get(ctx, argv[0]);
@@ -266,7 +265,7 @@ namespace qjs {
         engine.track(std::move(wrap));
 
         auto trampoline = [](JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv, int magic, JSValue* data) -> JSValue {
-            auto* f = reinterpret_cast<Wrapper*>(detail::ToPtr(data[0]));
+            auto* f = static_cast<Wrapper*>(detail::ToPtr(data[0]));
             int32_t id; JS_ToInt32(ctx, &id, data[1]);
             T* instance = static_cast<T*>(JS_GetOpaque(this_val, id));
             if (!instance) return JS_ThrowTypeError(ctx, "Invalid 'this'");
