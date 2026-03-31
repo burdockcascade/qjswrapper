@@ -14,6 +14,7 @@ set_target_properties(qjswrapper PROPERTIES OUTPUT_NAME "qjswrapper")
 set_target_properties(qjswrapper PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/build/windows/x64/release")
 target_include_directories(qjswrapper SYSTEM PRIVATE
     C:/Users/peter/AppData/Local/.xmake/packages/q/quickjs-ng/v0.13.0/b90f1e05389342e283b9224b7684f3ac/include
+    C:/Users/peter/AppData/Local/.xmake/packages/r/raylib/5.5/ff3f87ca824444c78f4ea6c42aea7e19/include
 )
 target_compile_options(qjswrapper PRIVATE
     $<$<COMPILE_LANGUAGE:C>:-DNDEBUG>
@@ -45,9 +46,16 @@ if(CURRENT_COMPILER_ID STREQUAL "MSVC")
 endif()
 target_link_libraries(qjswrapper PRIVATE
     qjs
+    raylib
+    opengl32
+    gdi32
+    user32
+    winmm
+    shell32
 )
 target_link_directories(qjswrapper PRIVATE
     C:/Users/peter/AppData/Local/.xmake/packages/q/quickjs-ng/v0.13.0/b90f1e05389342e283b9224b7684f3ac/lib
+    C:/Users/peter/AppData/Local/.xmake/packages/r/raylib/5.5/ff3f87ca824444c78f4ea6c42aea7e19/lib
 )
 # private sourcefiles from sourcebatch c++.build for target qjswrapper
 target_sources(qjswrapper PRIVATE 
