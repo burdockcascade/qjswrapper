@@ -124,9 +124,6 @@ int test_ship(qjs::Engine &engine) {
     return 0;
 }
 
-static Color RAYLIB_BLUE = BLUE;
-
-
 // this tests running a file with structs and functions
 int test_raylib(qjs::Engine &engine) {
     // 1. Setup Raylib

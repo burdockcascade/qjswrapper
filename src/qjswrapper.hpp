@@ -266,31 +266,30 @@ namespace qjs {
     };
 
     template <typename T>
-    template <typename V>
-    ClassBinder<T>& ClassBinder<T>::field(std::string_view field_name, V T::*member) {
-        struct FieldAccessor { V T::*ptr; JSClassID id; };
-        auto acc = std::make_unique<FieldAccessor>(member, class_id);
-        void* raw_acc = acc.get();
-        engine.track(std::move(acc));
-        auto getter = [](JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv, int magic, JSValue* data) -> JSValue {
-            auto* acc = static_cast<FieldAccessor*>(detail::ToPtr(data[0]));
-            T* instance = static_cast<T*>(JS_GetOpaque(this_val, acc->id));
-            if (!instance) return JS_ThrowTypeError(ctx, "Invalid 'this'");
-            return converter<V>::put(ctx, instance->*(acc->ptr));
+    template <typename R, typename... Args>
+    ClassBinder<T>& ClassBinder<T>::constructor_lambda_impl(std::function<R(Args...)> f) {
+        static_assert(std::is_same_v<R, T*>, "Constructor lambda must return T*");
+        auto wrap = std::make_unique<std::function<R(Args...)>>(std::move(f));
+        void* raw_wrap = wrap.get();
+        engine.track(std::move(wrap));
+        JSValue data[2] = { detail::NewPtr(raw_wrap), JS_NewInt32(ctx, class_id) };
+        auto ctor_wrap = [](JSContext* ctx, JSValueConst new_target, int argc, JSValueConst* argv, int magic, JSValue* data) -> JSValue {
+            if (JS_IsUndefined(new_target)) return JS_ThrowTypeError(ctx, "Use 'new'");
+            auto* fn = static_cast<std::function<R(Args...)>*>(detail::ToPtr(data[0]));
+            int32_t id; JS_ToInt32(ctx, &id, data[1]);
+            T* instance = Engine::invoke_raw<R, Args...>(ctx, *fn, argv, std::make_index_sequence<sizeof...(Args)>{});
+            JSValue proto = JS_GetPropertyStr(ctx, new_target, "prototype");
+            JSValue obj = JS_NewObjectClass(ctx, id);
+            JS_SetPrototype(ctx, obj, proto);
+            JS_FreeValue(ctx, proto);
+            JS_SetOpaque(obj, instance);
+            return obj;
         };
-        auto setter = [](JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv, int magic, JSValue* data) -> JSValue {
-            auto* acc = static_cast<FieldAccessor*>(detail::ToPtr(data[0]));
-            T* instance = static_cast<T*>(JS_GetOpaque(this_val, acc->id));
-            if (!instance) return JS_ThrowTypeError(ctx, "Invalid 'this'");
-            instance->*(acc->ptr) = converter<V>::get(ctx, argv[0]);
-            return JS_UNDEFINED;
-        };
-        JSValue data_val = detail::NewPtr(raw_acc);
-        JSValue js_get = JS_NewCFunctionData(ctx, getter, 0, 0, 1, &data_val);
-        JSValue js_set = JS_NewCFunctionData(ctx, setter, 1, 0, 1, &data_val);
-        JSAtom atom = JS_NewAtom(ctx, field_name.data());
-        JS_DefinePropertyGetSet(ctx, proto, atom, js_get, js_set, JS_PROP_C_W_E);
-        JS_FreeAtom(ctx, atom);
+        JSValue ctor_func = JS_NewCFunctionData(ctx, ctor_wrap, sizeof...(Args), 0, 2, data);
+        JS_SetConstructorBit(ctx, ctor_func, true);
+        JSValue global = JS_GetGlobalObject(ctx);
+        JS_SetPropertyStr(ctx, global, name.c_str(), ctor_func);
+        JS_FreeValue(ctx, global);
         return *this;
     }
 
@@ -330,34 +329,6 @@ namespace qjs {
         JSValue data_arr[2] = { detail::NewPtr(raw_wrap), JS_NewInt32(ctx, class_id) };
         JSValue js_method = JS_NewCFunctionData(ctx, trampoline, sizeof...(Args), 0, 2, data_arr);
         JS_SetPropertyStr(ctx, proto, method_name.data(), js_method);
-        return *this;
-    }
-
-    template <typename T>
-    template <typename R, typename... Args>
-    ClassBinder<T>& ClassBinder<T>::constructor_lambda_impl(std::function<R(Args...)> f) {
-        static_assert(std::is_same_v<R, T*>, "Constructor lambda must return T*");
-        auto wrap = std::make_unique<std::function<R(Args...)>>(std::move(f));
-        void* raw_wrap = wrap.get();
-        engine.track(std::move(wrap));
-        JSValue data[2] = { detail::NewPtr(raw_wrap), JS_NewInt32(ctx, class_id) };
-        auto ctor_wrap = [](JSContext* ctx, JSValueConst new_target, int argc, JSValueConst* argv, int magic, JSValue* data) -> JSValue {
-            if (JS_IsUndefined(new_target)) return JS_ThrowTypeError(ctx, "Use 'new'");
-            auto* fn = static_cast<std::function<R(Args...)>*>(detail::ToPtr(data[0]));
-            int32_t id; JS_ToInt32(ctx, &id, data[1]);
-            T* instance = Engine::invoke_raw<R, Args...>(ctx, *fn, argv, std::make_index_sequence<sizeof...(Args)>{});
-            JSValue proto = JS_GetPropertyStr(ctx, new_target, "prototype");
-            JSValue obj = JS_NewObjectClass(ctx, id);
-            JS_SetPrototype(ctx, obj, proto);
-            JS_FreeValue(ctx, proto);
-            JS_SetOpaque(obj, instance);
-            return obj;
-        };
-        JSValue ctor_func = JS_NewCFunctionData(ctx, ctor_wrap, sizeof...(Args), 0, 2, data);
-        JS_SetConstructorBit(ctx, ctor_func, true);
-        JSValue global = JS_GetGlobalObject(ctx);
-        JS_SetPropertyStr(ctx, global, name.c_str(), ctor_func);
-        JS_FreeValue(ctx, global);
         return *this;
     }
 
@@ -411,8 +382,43 @@ namespace qjs {
 
     template <typename T>
     template <typename V>
+    ClassBinder<T>& ClassBinder<T>::field(std::string_view field_name, V T::*member) {
+        struct FieldAccessor { V T::*ptr; JSClassID id; };
+        auto acc = std::make_unique<FieldAccessor>(member, class_id);
+        void* raw_acc = acc.get();
+        engine.track(std::move(acc));
+
+        auto getter = [](JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv, int magic, JSValue* data) -> JSValue {
+            auto* acc = static_cast<FieldAccessor*>(detail::ToPtr(data[0]));
+            T* instance = static_cast<T*>(JS_GetOpaque(this_val, acc->id));
+            if (!instance) return JS_ThrowTypeError(ctx, "Invalid 'this'");
+            return converter<V>::put(ctx, instance->*(acc->ptr));
+        };
+
+        auto setter = [](JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv, int magic, JSValue* data) -> JSValue {
+            auto* acc = static_cast<FieldAccessor*>(detail::ToPtr(data[0]));
+            T* instance = static_cast<T*>(JS_GetOpaque(this_val, acc->id));
+            if (!instance) return JS_ThrowTypeError(ctx, "Invalid 'this'");
+            instance->*(acc->ptr) = converter<V>::get(ctx, argv[0]);
+            return JS_UNDEFINED;
+        };
+
+        JSValue data_val = detail::NewPtr(raw_acc);
+        const JSValue js_get = JS_NewCFunctionData(ctx, getter, 0, 0, 1, &data_val);
+        const JSValue js_set = JS_NewCFunctionData(ctx, setter, 1, 0, 1, &data_val);
+        const JSAtom atom = JS_NewAtom(ctx, field_name.data());
+        JS_DefinePropertyGetSet(ctx, proto, atom, js_get, js_set, JS_PROP_C_W_E);
+
+        // Cleanup temporary JS references
+        JS_FreeAtom(ctx, atom);
+
+        return *this;
+    }
+
+    template <typename T>
+    template <typename V>
     ClassBinder<T>& ClassBinder<T>::static_field(std::string_view field_name, V* data_ptr) {
-        // 1. Define the C-style callbacks for QuickJS
+
         auto getter = [](JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv, int magic, JSValue* data) -> JSValue {
             V* ptr = static_cast<V*>(detail::ToPtr(data[0]));
             return converter<V>::put(ctx, *ptr);
@@ -424,20 +430,20 @@ namespace qjs {
             return JS_UNDEFINED;
         };
 
-        // 2. Package the pointer into JS-accessible data
+        // Package the pointer into JS-accessible data
         JSValue data_val = detail::NewPtr(data_ptr);
-        JSValue js_get = JS_NewCFunctionData(ctx, getter, 0, 0, 1, &data_val);
-        JSValue js_set = JS_NewCFunctionData(ctx, setter, 1, 0, 1, &data_val);
+        const JSValue js_get = JS_NewCFunctionData(ctx, getter, 0, 0, 1, &data_val);
+        const JSValue js_set = JS_NewCFunctionData(ctx, setter, 1, 0, 1, &data_val);
 
-        // 3. Look up the Constructor on the Global Object
-        JSValue global = JS_GetGlobalObject(ctx);
-        JSValue ctor = JS_GetPropertyStr(ctx, global, name.c_str());
-        JSAtom atom = JS_NewAtom(ctx, field_name.data());
+        // Look up the Constructor on the Global Object
+        const JSValue global = JS_GetGlobalObject(ctx);
+        const JSValue ctor = JS_GetPropertyStr(ctx, global, name.c_str());
+        const JSAtom atom = JS_NewAtom(ctx, field_name.data());
 
-        // 4. Define the property on the constructor (static access)
+        // Define the property on the constructor (static access)
         JS_DefinePropertyGetSet(ctx, ctor, atom, js_get, js_set, JS_PROP_C_W_E);
 
-        // 5. Cleanup temporary JS references
+        // Cleanup temporary JS references
         JS_FreeAtom(ctx, atom);
         JS_FreeValue(ctx, ctor);
         JS_FreeValue(ctx, global);
@@ -447,7 +453,7 @@ namespace qjs {
 
     template <typename T>
     template <typename V>
-    ClassBinder<T>& ClassBinder<T>::static_constant(std::string_view field_name, V value) {
+    ClassBinder<T>& ClassBinder<T>::static_constant(const std::string_view field_name, V value) {
         // We store the value in a shared_ptr so the JS callback can access it forever
         auto saved_value = std::make_shared<V>(value);
 
@@ -463,11 +469,11 @@ namespace qjs {
         // Track the shared_ptr so it isn't deleted while the engine is running
         engine.track(std::move(saved_value));
 
-        JSValue js_get = JS_NewCFunctionData(ctx, getter, 0, 0, 1, &data_val);
+        const JSValue js_get = JS_NewCFunctionData(ctx, getter, 0, 0, 1, &data_val);
 
-        JSValue global = JS_GetGlobalObject(ctx);
-        JSValue ctor = JS_GetPropertyStr(ctx, global, name.c_str());
-        JSAtom atom = JS_NewAtom(ctx, field_name.data());
+        const JSValue global = JS_GetGlobalObject(ctx);
+        const JSValue ctor = JS_GetPropertyStr(ctx, global, name.c_str());
+        const JSAtom atom = JS_NewAtom(ctx, field_name.data());
 
         // Register as Read-Only (JS_PROP_C_W_E means Configurable, NOT Writable, Enumerable)
         JS_DefinePropertyGetSet(ctx, ctor, atom, js_get, JS_UNDEFINED, JS_PROP_ENUMERABLE);
