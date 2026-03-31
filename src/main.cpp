@@ -75,6 +75,22 @@ int test_math() {
     return 0;
 }
 
+class Player {
+public:
+    Player(std::string name) : name(name), health(100) {}
+    void heal(int amount) { health += amount; }
+    int get_health() { return health; }
+
+private:
+    std::string name;
+    int health;
+};
+
+class Timer {
+public:
+    void reset() { /* ... */ }
+};
+
 int test_raylib() {
     // 1. Setup Raylib
     InitWindow(800, 450, "QuickJS + Raylib File Loader");
@@ -88,6 +104,14 @@ int test_raylib() {
     engine.register_function("drawText", [](std::string text, int x, int y, int size, Color c) {
         DrawText(text.c_str(), x, y, size, c);
     });
+
+    engine.register_class<Player>("Player")
+        .constructor<std::string>()
+        .method("heal", &Player::heal)
+        .method("getHealth", &Player::get_health);
+
+    engine.register_class<Timer>("Timer")
+      .method("reset", &Timer::reset);
 
     // 3. Main Game Loop
     while (!WindowShouldClose()) {
