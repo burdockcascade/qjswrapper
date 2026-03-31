@@ -57,17 +57,18 @@ namespace qjs {
 }
 
 
-int cpp_add(const int a, const int b) {
-    return a + b;
+int cpp_sub(const int a, const int b) {
+    return a - b;
 }
 
 int test_math(qjs::Engine &engine) {
 
     // Bind any C++ lambda
     engine.register_function("add", [](int a, int b) { return a + b; });
+    engine.register_function("sub", cpp_sub);
 
     // Evaluate and get result (or error)
-    auto res = engine.eval("add(5, 10)");
+    auto res = engine.eval("add(5, sub(20 - 10))");
 
     if (res) {
         std::cout << "Result: " << *res << "\n";
@@ -100,9 +101,6 @@ public:
     int fuel;
 
 };
-
-
-
 
 // this tests running bytecode
 int test_ship(qjs::Engine &engine) {
@@ -149,12 +147,6 @@ int test_raylib(qjs::Engine &engine) {
         .constructor<float, float>()
         .field("x", &Vector2::x)
         .field("y", &Vector2::y);
-
-    engine.register_class<Vector3>("Vector3")
-        .constructor<float, float, float>()
-        .field("x", &Vector3::x)
-        .field("y", &Vector3::y)
-        .field("z", &Vector3::z);
 
     // 3. Main Game Loop
     while (!WindowShouldClose()) {
