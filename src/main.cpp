@@ -97,8 +97,8 @@ public:
     int get_fuel() const { return fuel; }
     std::string get_name() const { return name; }
 
-    std::string name;
-    int fuel;
+    std::string name = "Unknown";
+    int fuel = 50;
 
 };
 
@@ -109,6 +109,10 @@ int test_ship(qjs::Engine &engine) {
     engine.register_class<Ship>("Ship")
         .constructor<std::string, int>()
         .method("fly", &Ship::fly)
+        .method("refuel", [](Ship* s, int amount) {
+            s->fuel += amount;
+            std::cout << s->name << " refueled by " << amount << std::endl;
+        })
         .method("getFuel", &Ship::get_fuel)
         .method("getName", &Ship::get_name)
         .field("fuel", &Ship::fuel)   // Bind the variable directly

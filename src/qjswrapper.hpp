@@ -21,11 +21,27 @@ namespace qjs {
         static JSValue NewPtr(void* ptr) {
             return JS_NewInt64(nullptr, reinterpret_cast<int64_t>(ptr));
         }
+
         static void* ToPtr(JSValue v) {
             int64_t p;
             JS_ToInt64(nullptr, &p, v);
             return reinterpret_cast<void*>(p);
         }
+
+        template <typename T>
+        struct function_traits : function_traits<decltype(&T::operator())> {};
+
+        // Specialization for const member function pointers (like lambdas)
+        template <typename ClassType, typename ReturnType, typename... Args>
+        struct function_traits<ReturnType(ClassType::*)(Args...) const> {
+            using type = std::function<ReturnType(Args...)>;
+        };
+
+        // Specialization for non-const member function pointers
+        template <typename ClassType, typename ReturnType, typename... Args>
+        struct function_traits<ReturnType(ClassType::*)(Args...)> {
+            using type = std::function<ReturnType(Args...)>;
+        };
     };
 
     // --- Type Conversion System ---
@@ -93,6 +109,13 @@ namespace qjs {
             return self.template method_impl<R, Args...>(name, reinterpret_cast<NonConstFunc>(func));
         }
 
+        template <typename F>
+        requires (!std::is_member_function_pointer_v<std::decay_t<F>>)
+        ClassBinder& method(std::string_view name, F&& f) {
+            using Functor = typename detail::function_traits<std::decay_t<F>>::type;
+            return method_lambda_impl(name, Functor(std::forward<F>(f)));
+        }
+
         // Body moved below Engine class to avoid "Incomplete Type"
         template <typename V>
         ClassBinder& field(std::string_view field_name, V T::*member);
@@ -137,6 +160,30 @@ namespace qjs {
         template <typename... Args, size_t... I>
         static T* ctor_helper(JSContext* ctx, JSValueConst* argv, std::index_sequence<I...>) {
             return new T(converter<std::decay_t<Args>>::get(ctx, argv[I])...);
+        }
+
+        template <typename R, typename... Args>
+        ClassBinder& method_lambda_impl(std::string_view method_name, std::function<R(T*, Args...)> f) {
+            auto wrap = std::make_unique<std::function<R(T*, Args...)>>(std::move(f));
+            void* raw_wrap = wrap.get();
+            engine.track(std::move(wrap));
+
+            auto trampoline = [](JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv, int magic, JSValue* data) -> JSValue {
+                auto* fn = static_cast<std::function<R(T*, Args...)>*>(detail::ToPtr(data[0]));
+                int32_t id;
+                JS_ToInt32(ctx, &id, data[1]);
+                T* instance = static_cast<T*>(JS_GetOpaque(this_val, id));
+
+                if (!instance) return JS_ThrowTypeError(ctx, "Invalid 'this' for lambda method");
+
+                // Use the existing invoke_and_put helper from your ClassBinder
+                return invoke_and_put<R, Args...>(ctx, instance, *fn, argv, std::make_index_sequence<sizeof...(Args)>{});
+            };
+
+            JSValue data_arr[2] = { detail::NewPtr(raw_wrap), JS_NewInt32(ctx, class_id) };
+            JSValue js_method = JS_NewCFunctionData(ctx, trampoline, sizeof...(Args), 0, 2, data_arr);
+            JS_SetPropertyStr(ctx, proto, method_name.data(), js_method);
+            return *this;
         }
     };
 
