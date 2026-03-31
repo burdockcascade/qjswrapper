@@ -80,7 +80,6 @@ int test_math(qjs::Engine &engine) {
 
 class Ship {
 public:
-    // Constructor requires a string and an int
     Ship(std::string name, int fuel) : name(name), fuel(fuel) {
         std::cout << "[C++] Ship '" << name << "' constructed with " << fuel << " fuel.\n";
     }
@@ -97,17 +96,18 @@ public:
     int get_fuel() const { return fuel; }
     std::string get_name() const { return name; }
 
-    std::string name = "Unknown";
-    int fuel = 50;
-
+    std::string name;
+    int fuel;
 };
 
-// this tests running bytecode
 int test_ship(qjs::Engine &engine) {
-
-    // Register the class: Name is "Ship", Constructor takes (string, int)
     engine.register_class<Ship>("Ship")
-        .constructor<std::string, int>()
+        // Use const std::string& to match the conversion behavior
+        .constructor([](const std::string& name, int fuel) {
+            fuel = std::min(20, fuel);
+            auto s = new Ship(name, fuel);
+            return s;
+        })
         .method("fly", &Ship::fly)
         .method("refuel", [](Ship* s, int amount) {
             s->fuel += amount;
@@ -115,17 +115,17 @@ int test_ship(qjs::Engine &engine) {
         })
         .method("getFuel", &Ship::get_fuel)
         .method("getName", &Ship::get_name)
-        .field("fuel", &Ship::fuel)   // Bind the variable directly
+        .field("fuel", &Ship::fuel)
         .field("name", &Ship::name);
 
-    // Load the script from disk
-
+    // Fix warning C4834 by handling the expected result
     if (auto result = engine.run_bytecode(qjsc_ship, qjsc_ship_size); !result) {
         std::cerr << "Script Error: " << result.error() << "\n";
     }
 
     return 0;
 }
+
 
 // this tests running a file with structs and functions
 int test_raylib(qjs::Engine &engine) {
