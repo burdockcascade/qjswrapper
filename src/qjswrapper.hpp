@@ -111,9 +111,9 @@ namespace qjs {
         }
 
         template<typename Func>
-        void bind(std::string_view name, Func&& func) {
+        void register_function(std::string_view name, Func&& func) {
             // We use a helper to deduce the function signature from the lambda's operator()
-            bind_impl(name, std::function(std::forward<Func>(func)));
+            register_function_impl(name, std::function(std::forward<Func>(func)));
         }
 
     private:
@@ -129,7 +129,7 @@ namespace qjs {
         }
 
         template<typename R, typename... Args>
-        void bind_impl(std::string_view name, std::function<R(Args...)> func) {
+        void register_function_impl(std::string_view name, std::function<R(Args...)> func) {
             // 1. Wrap the function in std::any and put it in a unique_ptr.
             // unique_ptr ensures the memory address of the function is stable
             // even if the vector 'functions_' grows and reallocates.

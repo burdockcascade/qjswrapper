@@ -58,11 +58,11 @@ int cpp_add(const int a, const int b) {
     return a + b;
 }
 
-int run_math() {
+int test_math() {
     qjs::Engine engine;
 
     // Bind any C++ lambda
-    engine.bind("add", [](int a, int b) { return a + b; });
+    engine.register_function("add", [](int a, int b) { return a + b; });
 
     // Evaluate and get result (or error)
     auto res = engine.eval("add(5, 10)");
@@ -75,7 +75,7 @@ int run_math() {
     return 0;
 }
 
-int run_raylib() {
+int test_raylib() {
     // 1. Setup Raylib
     InitWindow(800, 450, "QuickJS + Raylib File Loader");
     SetTargetFPS(60);
@@ -83,9 +83,9 @@ int run_raylib() {
     qjs::Engine engine;
 
     // 2. Bind the Raylib functions we need
-    engine.bind("clearBackground", [](Color c) { ClearBackground(c); });
-    engine.bind("drawCircle", [](int x, int y, float r, Color c) { DrawCircle(x, y, r, c); });
-    engine.bind("drawText", [](std::string text, int x, int y, int size, Color c) {
+    engine.register_function("clearBackground", [](Color c) { ClearBackground(c); });
+    engine.register_function("drawCircle", [](int x, int y, float r, Color c) { DrawCircle(x, y, r, c); });
+    engine.register_function("drawText", [](std::string text, int x, int y, int size, Color c) {
         DrawText(text.c_str(), x, y, size, c);
     });
 
@@ -110,5 +110,5 @@ int run_raylib() {
 
 // --- Usage ---
 int main() {
-    run_raylib();
+    test_raylib();
 }
