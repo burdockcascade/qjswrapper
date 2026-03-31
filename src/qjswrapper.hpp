@@ -17,7 +17,7 @@
 
 namespace qjs {
 
-    // --- Internal Helpers for Pointer Smuggling ---
+    // --- Internal Helpers ---
     struct detail {
         static JSValue NewPtr(void* ptr) {
             return JS_NewInt64(nullptr, reinterpret_cast<int64_t>(ptr));
@@ -67,7 +67,7 @@ namespace qjs {
         }
     };
 
-    class Engine;
+    class Engine; // Forward declaration
 
     // --- Class Binding Logic ---
     template <typename T>
@@ -82,7 +82,7 @@ namespace qjs {
         ClassBinder(JSContext* c, JSValue p, JSClassID id, std::string_view n, Engine& e)
             : ctx(c), proto(p), class_id(id), name(n), engine(e) {}
 
-        // C++23: Explicit object parameter (deducing this)
+        // C++23: Explicit object parameter
         template <typename R, typename... Args>
         ClassBinder& method(this auto& self, std::string_view name, R (T::*func)(Args...)) {
             return self.template method_impl<R, Args...>(name, func);
@@ -94,36 +94,9 @@ namespace qjs {
             return self.template method_impl<R, Args...>(name, reinterpret_cast<NonConstFunc>(func));
         }
 
+        // Body moved below Engine class to avoid "Incomplete Type"
         template <typename V>
-        ClassBinder& field(std::string_view field_name, V T::*member) {
-            struct FieldAccessor { V T::*ptr; JSClassID id; };
-            auto acc = std::make_unique<FieldAccessor>(member, class_id);
-            void* raw_acc = acc.get();
-            engine.track(std::move(acc));
-
-            auto getter = [](JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv, int magic, JSValue* data) -> JSValue {
-                auto* acc = reinterpret_cast<FieldAccessor*>(detail::ToPtr(data[0]));
-                T* instance = static_cast<T*>(JS_GetOpaque(this_val, acc->id));
-                if (!instance) return JS_ThrowTypeError(ctx, "Invalid 'this' for field");
-                return converter<V>::put(ctx, instance->*(acc->ptr));
-            };
-
-            auto setter = [](JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv, int magic, JSValue* data) -> JSValue {
-                auto* acc = reinterpret_cast<FieldAccessor*>(detail::ToPtr(data[0]));
-                T* instance = static_cast<T*>(JS_GetOpaque(this_val, acc->id));
-                if (!instance) return JS_ThrowTypeError(ctx, "Invalid 'this' for field");
-                instance->*(acc->ptr) = converter<V>::get(ctx, argv[0]);
-                return JS_UNDEFINED;
-            };
-
-            JSValue data_val = detail::NewPtr(raw_acc);
-            JSValue js_get = JS_NewCFunctionData(ctx, getter, 0, 0, 1, &data_val);
-            JSValue js_set = JS_NewCFunctionData(ctx, setter, 1, 0, 1, &data_val);
-            JSAtom atom = JS_NewAtom(ctx, field_name.data());
-            JS_DefinePropertyGetSet(ctx, proto, atom, js_get, js_set, JS_PROP_C_W_E);
-            JS_FreeAtom(ctx, atom);
-            return *this;
-        }
+        ClassBinder& field(std::string_view field_name, V T::*member);
 
         template <typename... Args>
         ClassBinder& constructor() {
@@ -148,26 +121,9 @@ namespace qjs {
         }
 
     private:
+        // Body moved below Engine class
         template <typename R, typename... Args>
-        ClassBinder& method_impl(std::string_view method_name, R (T::*func)(Args...)) {
-            using Wrapper = std::function<R(T*, Args...)>;
-            auto wrap = std::make_unique<Wrapper>([func](T* i, Args... args) { return (i->*func)(args...); });
-            void* raw_wrap = wrap.get();
-            engine.track(std::move(wrap));
-
-            auto trampoline = [](JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv, int magic, JSValue* data) -> JSValue {
-                auto* f = reinterpret_cast<Wrapper*>(detail::ToPtr(data[0]));
-                int32_t id; JS_ToInt32(ctx, &id, data[1]);
-                T* instance = static_cast<T*>(JS_GetOpaque(this_val, id));
-                if (!instance) return JS_ThrowTypeError(ctx, "Invalid 'this'");
-                return invoke_and_put<R, Args...>(ctx, instance, *f, argv, std::make_index_sequence<sizeof...(Args)>{});
-            };
-
-            JSValue data_arr[2] = { detail::NewPtr(raw_wrap), JS_NewInt32(ctx, class_id) };
-            JSValue js_method = JS_NewCFunctionData(ctx, trampoline, sizeof...(Args), 0, 2, data_arr);
-            JS_SetPropertyStr(ctx, proto, method_name.data(), js_method);
-            return *this;
-        }
+        ClassBinder& method_impl(std::string_view method_name, R (T::*func)(Args...));
 
         template <typename R, typename... Args, size_t... I>
         static JSValue invoke_and_put(JSContext* ctx, T* inst, std::function<R(T*, Args...)>& f, JSValueConst* argv, std::index_sequence<I...>) {
@@ -192,7 +148,6 @@ namespace qjs {
         std::unique_ptr<JSRuntime, RTDel> rt;
         std::unique_ptr<JSContext, CTDel> ctx;
         JSValue global_obj;
-        // Tracking heap allocations for trampolines
         std::vector<std::unique_ptr<void, void(*)(void*)>> allocations;
 
     public:
@@ -252,7 +207,6 @@ namespace qjs {
             JS_SetPropertyStr(ctx.get(), global_obj, name.data(), JS_NewCFunctionData(ctx.get(), tramp, sizeof...(Args), 0, 1, &data));
         }
 
-        // Overload for lambdas/auto-deduction
         template<typename F> void register_function(std::string_view name, F&& f) {
             register_function(name, std::function(std::forward<F>(f)));
         }
@@ -268,4 +222,61 @@ namespace qjs {
             }
         }
     };
-}
+
+    // --- Out-of-line Implementations ---
+
+    template <typename T>
+    template <typename V>
+    ClassBinder<T>& ClassBinder<T>::field(std::string_view field_name, V T::*member) {
+        struct FieldAccessor { V T::*ptr; JSClassID id; };
+        auto acc = std::make_unique<FieldAccessor>(member, class_id);
+        void* raw_acc = acc.get();
+        engine.track(std::move(acc));
+
+        auto getter = [](JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv, int magic, JSValue* data) -> JSValue {
+            auto* acc = reinterpret_cast<FieldAccessor*>(detail::ToPtr(data[0]));
+            T* instance = static_cast<T*>(JS_GetOpaque(this_val, acc->id));
+            if (!instance) return JS_ThrowTypeError(ctx, "Invalid 'this' for field");
+            return converter<V>::put(ctx, instance->*(acc->ptr));
+        };
+
+        auto setter = [](JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv, int magic, JSValue* data) -> JSValue {
+            auto* acc = reinterpret_cast<FieldAccessor*>(detail::ToPtr(data[0]));
+            T* instance = static_cast<T*>(JS_GetOpaque(this_val, acc->id));
+            if (!instance) return JS_ThrowTypeError(ctx, "Invalid 'this' for field");
+            instance->*(acc->ptr) = converter<V>::get(ctx, argv[0]);
+            return JS_UNDEFINED;
+        };
+
+        JSValue data_val = detail::NewPtr(raw_acc);
+        JSValue js_get = JS_NewCFunctionData(ctx, getter, 0, 0, 1, &data_val);
+        JSValue js_set = JS_NewCFunctionData(ctx, setter, 1, 0, 1, &data_val);
+        JSAtom atom = JS_NewAtom(ctx, field_name.data());
+        JS_DefinePropertyGetSet(ctx, proto, atom, js_get, js_set, JS_PROP_C_W_E);
+        JS_FreeAtom(ctx, atom);
+        return *this;
+    }
+
+    template <typename T>
+    template <typename R, typename... Args>
+    ClassBinder<T>& ClassBinder<T>::method_impl(std::string_view method_name, R (T::*func)(Args...)) {
+        using Wrapper = std::function<R(T*, Args...)>;
+        auto wrap = std::make_unique<Wrapper>([func](T* i, Args... args) { return (i->*func)(args...); });
+        void* raw_wrap = wrap.get();
+        engine.track(std::move(wrap));
+
+        auto trampoline = [](JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv, int magic, JSValue* data) -> JSValue {
+            auto* f = reinterpret_cast<Wrapper*>(detail::ToPtr(data[0]));
+            int32_t id; JS_ToInt32(ctx, &id, data[1]);
+            T* instance = static_cast<T*>(JS_GetOpaque(this_val, id));
+            if (!instance) return JS_ThrowTypeError(ctx, "Invalid 'this'");
+            return invoke_and_put<R, Args...>(ctx, instance, *f, argv, std::make_index_sequence<sizeof...(Args)>{});
+        };
+
+        JSValue data_arr[2] = { detail::NewPtr(raw_wrap), JS_NewInt32(ctx, class_id) };
+        JSValue js_method = JS_NewCFunctionData(ctx, trampoline, sizeof...(Args), 0, 2, data_arr);
+        JS_SetPropertyStr(ctx, proto, method_name.data(), js_method);
+        return *this;
+    }
+
+} // namespace qjs
