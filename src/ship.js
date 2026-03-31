@@ -12,4 +12,4 @@ console.log(`Final Fuel: ${voyager.getFuel()}`);
 console.log("Fuel after flight:", voyager.fuel);
 
 // This would throw a TypeError because of our engine's safety checks:
-// voyager.fly("fast");
+voyager.fly("fast");
