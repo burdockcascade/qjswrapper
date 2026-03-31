@@ -102,9 +102,7 @@ public:
 
 int test_ship(qjs::Engine &engine) {
     engine.register_class<Ship>("Ship")
-        // Use const std::string& to match the conversion behavior
         .constructor([](const std::string& name, int fuel) {
-            fuel = std::min(20, fuel);
             auto s = new Ship(name, fuel);
             return s;
         })
@@ -126,6 +124,8 @@ int test_ship(qjs::Engine &engine) {
     return 0;
 }
 
+static Color RAYLIB_BLUE = BLUE;
+
 
 // this tests running a file with structs and functions
 int test_raylib(qjs::Engine &engine) {
@@ -145,12 +145,20 @@ int test_raylib(qjs::Engine &engine) {
         .field("r", &Color::r)
         .field("g", &Color::g)
         .field("b", &Color::b)
-        .field("a", &Color::a);
+        .field("a", &Color::a)
+        .static_constant("BLUE", BLUE)
+        .static_constant("RED", RED)
+        .static_constant("GOLD", GOLD);
 
     engine.register_class<Vector2>("Vector2")
         .constructor<float, float>()
         .field("x", &Vector2::x)
-        .field("y", &Vector2::y);
+        .field("y", &Vector2::y)
+        .method("add", [](Vector2 *v1, Vector2 v2) {
+            v1->x += v2.x;
+            v1->y += v2.y;
+            return v1;
+        });
 
     // 3. Main Game Loop
     while (!WindowShouldClose()) {

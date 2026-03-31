@@ -113,26 +113,7 @@ namespace qjs {
         }
 
         template <typename... Args>
-        ClassBinder& constructor() {
-            JSValue data = JS_NewInt32(ctx, static_cast<int32_t>(class_id));
-            auto ctor_wrap = [](JSContext* ctx, JSValueConst new_target, int argc, JSValueConst* argv, int magic, JSValue* data) -> JSValue {
-                if (JS_IsUndefined(new_target)) return JS_ThrowTypeError(ctx, "Use 'new'");
-                int32_t id; JS_ToInt32(ctx, &id, data[0]);
-                T* instance = ctor_helper<Args...>(ctx, argv, std::make_index_sequence<sizeof...(Args)>{});
-                JSValue proto = JS_GetPropertyStr(ctx, new_target, "prototype");
-                JSValue obj = JS_NewObjectClass(ctx, id);
-                JS_SetPrototype(ctx, obj, proto);
-                JS_FreeValue(ctx, proto);
-                JS_SetOpaque(obj, instance);
-                return obj;
-            };
-            JSValue ctor_func = JS_NewCFunctionData(ctx, ctor_wrap, sizeof...(Args), 0, 1, &data);
-            JS_SetConstructorBit(ctx, ctor_func, true);
-            JSValue global = JS_GetGlobalObject(ctx);
-            JS_SetPropertyStr(ctx, global, name.c_str(), ctor_func);
-            JS_FreeValue(ctx, global);
-            return *this;
-        }
+        ClassBinder& constructor();
 
         template <typename F>
         ClassBinder& constructor(F&& f) {
@@ -142,6 +123,15 @@ namespace qjs {
 
         template <typename V>
         ClassBinder& field(std::string_view field_name, V T::*member);
+
+        template <typename R, typename... Args>
+        ClassBinder& static_method(std::string_view method_name, R (*func)(Args...));
+
+        template <typename V>
+        ClassBinder& static_field(std::string_view field_name, V* data_ptr);
+
+        template <typename V>
+        ClassBinder& static_constant(std::string_view field_name, V value);
 
     private:
         template <typename R, typename... Args>
@@ -175,7 +165,7 @@ namespace qjs {
         std::unique_ptr<JSRuntime, RTDel> rt;
         std::unique_ptr<JSContext, CTDel> ctx;
         JSValue global_obj{};
-        std::vector<std::unique_ptr<void, void(*)(void*)>> allocations;
+        std::vector<std::shared_ptr<void>> allocations;
 
     public:
         Engine() : rt(JS_NewRuntime()), ctx(JS_NewContext(rt.get())) {
@@ -201,8 +191,17 @@ namespace qjs {
             return wrap_result(JS_EvalFunction(ctx.get(), obj));
         }
 
-        template <typename T> void track(std::unique_ptr<T> p) {
-            allocations.emplace_back(p.release(), [](void* ptr) { delete static_cast<T*>(ptr); });
+        // Update track to accept shared_ptr
+        template <typename T>
+        void track(std::shared_ptr<T> p) {
+            allocations.push_back(std::static_pointer_cast<void>(p));
+        }
+
+        // Keep an overload for unique_ptr if you still use it elsewhere
+        template <typename T>
+        void track(std::unique_ptr<T> p) {
+            // Convert unique_ptr to shared_ptr for storage
+            allocations.push_back(std::shared_ptr<T>(std::move(p)));
         }
 
         template <typename T>
@@ -358,6 +357,123 @@ namespace qjs {
         JS_SetConstructorBit(ctx, ctor_func, true);
         JSValue global = JS_GetGlobalObject(ctx);
         JS_SetPropertyStr(ctx, global, name.c_str(), ctor_func);
+        JS_FreeValue(ctx, global);
+        return *this;
+    }
+
+    template <typename T>
+    template <typename R, typename... Args>
+    ClassBinder<T>& ClassBinder<T>::static_method(std::string_view method_name, R (*func)(Args...)) {
+        using Wrapper = std::function<R(Args...)>;
+        auto wrap = std::make_unique<Wrapper>([func](Args... args) { return func(args...); });
+        void* raw_wrap = wrap.get();
+        engine.track(std::move(wrap));
+
+        auto trampoline = [](JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv, int magic, JSValue* data) -> JSValue {
+            auto* f = static_cast<Wrapper*>(detail::ToPtr(data[0]));
+            return Engine::invoke_free_helper<R, Args...>(ctx, *f, argv, std::make_index_sequence<sizeof...(Args)>{});
+        };
+
+        JSValue data_val = detail::NewPtr(raw_wrap);
+        JSValue js_method = JS_NewCFunctionData(ctx, trampoline, sizeof...(Args), 0, 1, &data_val);
+
+        JSValue global = JS_GetGlobalObject(ctx);
+        JSValue ctor = JS_GetPropertyStr(ctx, global, name.c_str());
+        JS_SetPropertyStr(ctx, ctor, method_name.data(), js_method);
+
+        JS_FreeValue(ctx, ctor);
+        JS_FreeValue(ctx, global);
+        return *this;
+    }
+
+    template <typename T>
+    template <typename... Args>
+        ClassBinder<T>& ClassBinder<T>::constructor() {
+        JSValue data = JS_NewInt32(ctx, static_cast<int32_t>(class_id));
+        auto ctor_wrap = [](JSContext* ctx, JSValueConst new_target, int argc, JSValueConst* argv, int magic, JSValue* data) -> JSValue {
+            if (JS_IsUndefined(new_target)) return JS_ThrowTypeError(ctx, "Use 'new'");
+            int32_t id; JS_ToInt32(ctx, &id, data[0]);
+            T* instance = ctor_helper<Args...>(ctx, argv, std::make_index_sequence<sizeof...(Args)>{});
+            JSValue proto = JS_GetPropertyStr(ctx, new_target, "prototype");
+            JSValue obj = JS_NewObjectClass(ctx, id);
+            JS_SetPrototype(ctx, obj, proto);
+            JS_FreeValue(ctx, proto);
+            JS_SetOpaque(obj, instance);
+            return obj;
+        };
+        JSValue ctor_func = JS_NewCFunctionData(ctx, ctor_wrap, sizeof...(Args), 0, 1, &data);
+        JS_SetConstructorBit(ctx, ctor_func, true);
+        JSValue global = JS_GetGlobalObject(ctx);
+        JS_SetPropertyStr(ctx, global, name.c_str(), ctor_func);
+        JS_FreeValue(ctx, global);
+        return *this;
+    }
+
+    template <typename T>
+    template <typename V>
+    ClassBinder<T>& ClassBinder<T>::static_field(std::string_view field_name, V* data_ptr) {
+        // 1. Define the C-style callbacks for QuickJS
+        auto getter = [](JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv, int magic, JSValue* data) -> JSValue {
+            V* ptr = static_cast<V*>(detail::ToPtr(data[0]));
+            return converter<V>::put(ctx, *ptr);
+        };
+
+        auto setter = [](JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv, int magic, JSValue* data) -> JSValue {
+            V* ptr = static_cast<V*>(detail::ToPtr(data[0]));
+            *ptr = converter<V>::get(ctx, argv[0]);
+            return JS_UNDEFINED;
+        };
+
+        // 2. Package the pointer into JS-accessible data
+        JSValue data_val = detail::NewPtr(data_ptr);
+        JSValue js_get = JS_NewCFunctionData(ctx, getter, 0, 0, 1, &data_val);
+        JSValue js_set = JS_NewCFunctionData(ctx, setter, 1, 0, 1, &data_val);
+
+        // 3. Look up the Constructor on the Global Object
+        JSValue global = JS_GetGlobalObject(ctx);
+        JSValue ctor = JS_GetPropertyStr(ctx, global, name.c_str());
+        JSAtom atom = JS_NewAtom(ctx, field_name.data());
+
+        // 4. Define the property on the constructor (static access)
+        JS_DefinePropertyGetSet(ctx, ctor, atom, js_get, js_set, JS_PROP_C_W_E);
+
+        // 5. Cleanup temporary JS references
+        JS_FreeAtom(ctx, atom);
+        JS_FreeValue(ctx, ctor);
+        JS_FreeValue(ctx, global);
+
+        return *this;
+    }
+
+    template <typename T>
+    template <typename V>
+    ClassBinder<T>& ClassBinder<T>::static_constant(std::string_view field_name, V value) {
+        // We store the value in a shared_ptr so the JS callback can access it forever
+        auto saved_value = std::make_shared<V>(value);
+
+        auto getter = [](JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv, int magic, JSValue* data) -> JSValue {
+            // Retrieve the stored value from our heap-allocated shared_ptr
+            V* ptr = static_cast<V*>(detail::ToPtr(data[0]));
+            return converter<V>::put(ctx, *ptr);
+        };
+
+        // No setter because it's a constant
+        JSValue data_val = detail::NewPtr(saved_value.get());
+
+        // Track the shared_ptr so it isn't deleted while the engine is running
+        engine.track(std::move(saved_value));
+
+        JSValue js_get = JS_NewCFunctionData(ctx, getter, 0, 0, 1, &data_val);
+
+        JSValue global = JS_GetGlobalObject(ctx);
+        JSValue ctor = JS_GetPropertyStr(ctx, global, name.c_str());
+        JSAtom atom = JS_NewAtom(ctx, field_name.data());
+
+        // Register as Read-Only (JS_PROP_C_W_E means Configurable, NOT Writable, Enumerable)
+        JS_DefinePropertyGetSet(ctx, ctor, atom, js_get, JS_UNDEFINED, JS_PROP_ENUMERABLE);
+
+        JS_FreeAtom(ctx, atom);
+        JS_FreeValue(ctx, ctor);
         JS_FreeValue(ctx, global);
         return *this;
     }
