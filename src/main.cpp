@@ -6,31 +6,101 @@
 #include <functional>
 #include <expected>
 #include "quickjs.h"
+#include "raylib.h"
+
 
 namespace qjs {
 
-    // --- Type Converters ---
-    template<typename T> struct converter;
+    template<typename T>
+    struct converter {
 
-    template<> struct converter<int> {
-        static int get(JSContext* ctx, JSValueConst v) {
-            int val = 0;
-            JS_ToInt32(ctx, &val, v);
-            return val;
-        }
-        static JSValue put(JSContext* ctx, int val) { return JS_NewInt32(ctx, val); }
-    };
+        // --- FROM JS (Get from JS) ---
+        static T get(JSContext* ctx, JSValueConst v) {
+            if constexpr (std::integral<T>) {
+                if constexpr (std::is_same_v<T, bool>) {
+                    return JS_ToBool(ctx, v);
+                } else {
+                    int32_t val = 0;
+                    JS_ToInt32(ctx, &val, v);
+                    return static_cast<T>(val);
+                }
+            }
+            else if constexpr (std::floating_point<T>) {
+                double val = 0;
+                JS_ToFloat64(ctx, &val, v);
+                return static_cast<T>(val);
+            }
+            else if constexpr (std::is_convertible_v<T, std::string>) {
+                size_t len;
+                const char* str = JS_ToCStringLen(ctx, &len, v);
+                std::string s(str ? str : "", len);
+                JS_FreeCString(ctx, str);
+                return s;
+            }
+            // Raylib specific branch
+            else if constexpr (std::is_same_v<T, Color>) {
+                uint32_t r, g, b, a;
+                JSValue r_val = JS_GetPropertyStr(ctx, v, "r");
+                JSValue g_val = JS_GetPropertyStr(ctx, v, "g");
+                JSValue b_val = JS_GetPropertyStr(ctx, v, "b");
+                JSValue a_val = JS_GetPropertyStr(ctx, v, "a");
 
-    template<> struct converter<std::string> {
-        static std::string get(JSContext* ctx, JSValueConst v) {
-            size_t len;
-            const char* str = JS_ToCStringLen(ctx, &len, v);
-            std::string s(str ? str : "", len);
-            JS_FreeCString(ctx, str);
-            return s;
+                JS_ToUint32(ctx, &r, r_val);
+                JS_ToUint32(ctx, &g, g_val);
+                JS_ToUint32(ctx, &b, b_val);
+                JS_ToUint32(ctx, &a, a_val);
+
+                JS_FreeValue(ctx, r_val); JS_FreeValue(ctx, g_val);
+                JS_FreeValue(ctx, b_val); JS_FreeValue(ctx, a_val);
+
+                return Color{static_cast<unsigned char>(r), static_cast<unsigned char>(g), static_cast<unsigned char>(b), static_cast<unsigned char>(a)};
+            }
+            else if constexpr (std::is_same_v<T, Vector2>) {
+                double x, y;
+                JSValue x_val = JS_GetPropertyStr(ctx, v, "x");
+                JSValue y_val = JS_GetPropertyStr(ctx, v, "y");
+                JS_ToFloat64(ctx, &x, x_val);
+                JS_ToFloat64(ctx, &y, y_val);
+                JS_FreeValue(ctx, x_val); JS_FreeValue(ctx, y_val);
+                return Vector2{static_cast<float>(x), static_cast<float>(y)};
+            } else {
+                static_assert(sizeof(T) == 0, "Unsupported type for QJS conversion");
+            }
         }
-        static JSValue put(JSContext* ctx, const std::string& val) {
-            return JS_NewStringLen(ctx, val.data(), val.size());
+
+        // --- TO JS (Put into JS) ---
+        static JSValue put(JSContext* ctx, const T& val) {
+            if constexpr (std::integral<T>) {
+                if constexpr (std::is_same_v<T, bool>) {
+                    return JS_NewBool(ctx, val);
+                } else {
+                    return JS_NewInt32(ctx, static_cast<int32_t>(val));
+                }
+            }
+            else if constexpr (std::floating_point<T>) {
+                return JS_NewFloat64(ctx, static_cast<double>(val));
+            }
+            else if constexpr (std::is_convertible_v<T, std::string_view>) {
+                return JS_NewStringLen(ctx, val.data(), val.size());
+            }
+            // Raylib specific branch
+            else if constexpr (std::is_same_v<T, Color>) {
+                JSValue obj = JS_NewObject(ctx);
+                JS_SetPropertyStr(ctx, obj, "r", JS_NewInt32(ctx, val.r));
+                JS_SetPropertyStr(ctx, obj, "g", JS_NewInt32(ctx, val.g));
+                JS_SetPropertyStr(ctx, obj, "b", JS_NewInt32(ctx, val.b));
+                JS_SetPropertyStr(ctx, obj, "a", JS_NewInt32(ctx, val.a));
+                return obj;
+            }
+            else if constexpr (std::is_same_v<T, Vector2>) {
+                JSValue obj = JS_NewObject(ctx);
+                JS_SetPropertyStr(ctx, obj, "x", JS_NewFloat64(ctx, val.x));
+                JS_SetPropertyStr(ctx, obj, "y", JS_NewFloat64(ctx, val.y));
+                return obj;
+            }
+            else {
+                return JS_UNDEFINED;
+            }
         }
     };
 
@@ -123,6 +193,7 @@ namespace qjs {
         JSValue global_obj_{};
         std::vector<std::unique_ptr<std::any>> functions_;
     };
+
 }
 
 int cpp_add(int a, int b) {
@@ -131,28 +202,29 @@ int cpp_add(int a, int b) {
 
 // --- Usage ---
 int main() {
+    InitWindow(800, 450, "Raylib + QuickJS");
     qjs::Engine engine;
 
-    // Bind a native C++ lambda with complex types
-    engine.bind("add", [](int a, int b) {
-        return a + b;
+    // Bind DrawCircle(int centerX, int centerY, float radius, Color color)
+    engine.bind("drawCircle", [](int x, int y, float radius, Color color) {
+        DrawCircle(x, y, radius, color);
     });
 
-    engine.bind("add2", cpp_add);
-
-    engine.bind("greet", [](const std::string& name) {
-        return "Hello from C++, " + name + "!";
+    // Bind ClearBackground(Color color)
+    engine.bind("clearBackground", [](Color color) {
+        ClearBackground(color);
     });
 
-    const auto res1 = engine.eval("add2(10, 32)");
-    const auto res2 = engine.eval("greet('Gemini')");
+    while (!WindowShouldClose()) {
+        BeginDrawing();
 
-    if (res1) {
-        std::cout << "Result 1: " << *res1 << "\n"; // 42
-    } else {
-        std::cout << "Error: " << *res1 << "\n";
+        // You could run a script here, or better yet, call a JS 'update' function
+        engine.eval("clearBackground({r: 20, g: 20, b: 20, a: 255});");
+        engine.eval("drawCircle(400, 225, 50, {r: 255, g: 0, b: 0, a: 255});");
+
+        EndDrawing();
     }
-    if (res2) std::cout << "Result 2: " << *res2 << "\n"; // Hello from C++, Gemini!
 
+    CloseWindow();
     return 0;
 }
