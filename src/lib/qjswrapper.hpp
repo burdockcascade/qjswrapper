@@ -18,9 +18,6 @@
 
 namespace qjs {
 
-    // --- Internal Helpers ---
-
-    // --- Type Conversion System ---
     template<typename T>
     struct converter {
         static T get(JSContext* ctx, JSValueConst v) {
@@ -120,7 +117,7 @@ namespace qjs {
         template <typename F>
         requires (!std::is_member_function_pointer_v<std::decay_t<F>>)
         ClassBinder& method(std::string_view name, F&& f) {
-            using Functor = typename detail::function_traits<std::decay_t<F>>::type;
+            using Functor = detail::function_traits<std::decay_t<F>>::type;
             return method_lambda_impl(name, Functor(std::forward<F>(f)));
         }
 
@@ -129,7 +126,7 @@ namespace qjs {
 
         template <typename F>
         ClassBinder& constructor(F&& f) {
-            using Functor = typename detail::function_traits<std::decay_t<F>>::type;
+            using Functor = detail::function_traits<std::decay_t<F>>::type;
             return constructor_lambda_impl(Functor(std::forward<F>(f)));
         }
 
@@ -191,17 +188,13 @@ namespace qjs {
         template<class T>
         void register_constant(std::string_view name, T value);
 
+        inline ObjectBinder create_object(std::string_view name) const;
+
     };
 
     // ==== ENGINE ====
 
     class Engine {
-        struct RTDel { void operator()(JSRuntime* r) const { JS_FreeRuntime(r); } };
-        struct CTDel { void operator()(JSContext* c) const { JS_FreeContext(c); } };
-        std::unique_ptr<JSRuntime, RTDel> rt;
-        std::unique_ptr<JSContext, CTDel> ctx;
-        JSValue global_obj{};
-        std::vector<std::shared_ptr<void>> allocations;
 
     public:
         Engine() : rt(JS_NewRuntime()), ctx(JS_NewContext(rt.get())) {
@@ -227,8 +220,8 @@ namespace qjs {
             return wrap_result(JS_EvalFunction(ctx.get(), obj));
         }
 
-        ObjectBinder create_object(std::string_view name);
-        ObjectBinder get_global_object();
+        inline ObjectBinder create_object(std::string_view name);
+        inline ObjectBinder get_global_object();
 
         // Update track to accept shared_ptr
         template <typename T>
@@ -259,12 +252,19 @@ namespace qjs {
         }
 
     private:
+        struct RTDel { void operator()(JSRuntime* r) const { JS_FreeRuntime(r); } };
+        struct CTDel { void operator()(JSContext* c) const { JS_FreeContext(c); } };
+        std::unique_ptr<JSRuntime, RTDel> rt;
+        std::unique_ptr<JSContext, CTDel> ctx;
+        JSValue global_obj{};
+        std::vector<std::shared_ptr<void>> allocations;
         std::expected<std::string, std::string> wrap_result(JSValue v) const;
+
     };
 
     // ==== IMPLEMENTATION ====
 
-    ObjectBinder Engine::create_object(std::string_view name) {
+    inline ObjectBinder Engine::create_object(std::string_view name) {
         const JSValue obj = JS_NewObject(ctx.get()); // Extracting raw pointer from unique_ptr
         JS_SetPropertyStr(ctx.get(), global_obj, name.data(), JS_DupValue(ctx.get(), obj));
 
@@ -272,11 +272,19 @@ namespace qjs {
         return ObjectBinder(rt.get(), ctx.get(), obj, *this, std::string(name));
     }
 
-    ObjectBinder Engine::get_global_object() {
+    inline ObjectBinder ObjectBinder::create_object(std::string_view name) const {
+        const JSValue obj = JS_NewObject(ctx); // Extracting raw pointer from unique_ptr
+        JS_SetPropertyStr(ctx, obj_this, name.data(), JS_DupValue(ctx, obj));
+
+        // Pass the raw JSContext* to the binder
+        return ObjectBinder(rt, ctx, obj, engine, std::string(name));
+    }
+
+    inline ObjectBinder Engine::get_global_object() {
         return ObjectBinder(rt.get(), ctx.get(), global_obj, *this, "global");
     }
 
-    std::expected<std::string, std::string> Engine::wrap_result(const JSValue v) const {
+   inline std::expected<std::string, std::string> Engine::wrap_result(const JSValue v) const {
         if (JS_IsException(v)) {
             JSValue e = JS_GetException(ctx.get());
             std::string msg = converter<std::string>::get(ctx.get(), e);
@@ -292,7 +300,7 @@ namespace qjs {
     template <typename T>
     auto ObjectBinder::register_class(std::string_view name) {
         JSClassID id = 0; JS_NewClassID(rt, &id);
-        JSClassDef def = { name.data(), [](JSRuntime* rt, JSValue val) {
+        const JSClassDef def = { name.data(), [](JSRuntime* rt, JSValue val) {
             T* ptr = static_cast<T*>(JS_GetOpaque(val, 0));
             delete ptr;
         }};
@@ -543,7 +551,7 @@ namespace qjs {
     template <typename T>
     template <typename F>
     ClassBinder<T>& ClassBinder<T>::static_method(std::string_view method_name, F&& f) {
-        using Functor = typename detail::function_traits<std::decay_t<F>>::type;
+        using Functor = detail::function_traits<std::decay_t<F>>::type;
         return static_method_lambda_impl(method_name, Functor(std::forward<F>(f)));
     }
 
@@ -559,12 +567,11 @@ namespace qjs {
             return invoke_free_helper<R, Args...>(ctx, *fn, argv, std::make_index_sequence<sizeof...(Args)>{});
         };
 
-        // FIX: Define the data array explicitly instead of using a compound literal cast
         JSValue data_arr[1] = { detail::NewPtr(raw_wrap) };
-        JSValue js_method = JS_NewCFunctionData(ctx, trampoline, sizeof...(Args), 0, 1, data_arr);
+        const JSValue js_method = JS_NewCFunctionData(ctx, trampoline, sizeof...(Args), 0, 1, data_arr);
 
-        JSValue global = JS_GetGlobalObject(ctx);
-        JSValue ctor = JS_GetPropertyStr(ctx, global, name.c_str());
+        const JSValue global = JS_GetGlobalObject(ctx);
+        const JSValue ctor = JS_GetPropertyStr(ctx, global, name.c_str());
         JS_SetPropertyStr(ctx, ctor, method_name.data(), js_method);
 
         JS_FreeValue(ctx, ctor);
@@ -574,11 +581,7 @@ namespace qjs {
 
     template <typename T>
     void ObjectBinder::register_constant(std::string_view name, T value) {
-        // Convert the C++ value to a QuickJS value using the converter system
-        JSValue val = converter<T>::put(ctx, value);
-
-        // Define the property on the global object
-        // Flags: Enumerable and Configurable, but NOT Writable
+        const JSValue val = converter<T>::put(ctx, value);
         JS_DefinePropertyValueStr(ctx, obj_this, name.data(), val, JS_PROP_ENUMERABLE | JS_PROP_CONFIGURABLE);
     }
 

@@ -136,11 +136,12 @@ int test_raylib(qjs::Engine &engine) {
     SetTargetFPS(60);
 
     auto global = engine.get_global_object();
+    auto rl = global.create_object("rl");
 
     // 2. Bind the Raylib functions we need
-    global.register_function("clearBackground", ::ClearBackground);
-    global.register_function("drawCircleV", [](const Vector2 v2, float r, Color c) { DrawCircleV(v2, r, c); });
-    global.register_function("drawText", [](const std::string& text, int x, int y, int size, Color c) {
+    rl.register_function("clearBackground", ::ClearBackground);
+    rl.register_function("drawCircleV", [](const Vector2 v2, float r, Color c) { DrawCircleV(v2, r, c); });
+    rl.register_function("drawText", [](const std::string& text, int x, int y, int size, Color c) {
         DrawText(text.c_str(), x, y, size, c);
     });
 

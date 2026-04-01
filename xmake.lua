@@ -1,7 +1,8 @@
 add_rules("mode.debug", "mode.release")
 set_languages("cxx23")
 
-add_requires("quickjs-ng")
+add_requires("quickjs-ng", {optional = true})
+add_requires("quickjs", {optional = true})
 add_requires("raylib")
 
 task("ship")
