@@ -496,7 +496,7 @@ namespace qjs {
     template <typename T>
     template <typename F>
     ClassBinder<T>& ClassBinder<T>::static_method(std::string_view method_name, F&& f) {
-        using Functor = typename detail::function_traits<std::decay_t<F>>::type;
+        using Functor = detail::function_traits<std::decay_t<F>>::type;
         return static_method_lambda_impl(method_name, Functor(std::forward<F>(f)));
     }
 
@@ -514,10 +514,10 @@ namespace qjs {
 
         // FIX: Define the data array explicitly instead of using a compound literal cast
         JSValue data_arr[1] = { detail::NewPtr(raw_wrap) };
-        JSValue js_method = JS_NewCFunctionData(ctx, trampoline, sizeof...(Args), 0, 1, data_arr);
+        const JSValue js_method = JS_NewCFunctionData(ctx, trampoline, sizeof...(Args), 0, 1, data_arr);
 
-        JSValue global = JS_GetGlobalObject(ctx);
-        JSValue ctor = JS_GetPropertyStr(ctx, global, name.c_str());
+        const JSValue global = JS_GetGlobalObject(ctx);
+        const JSValue ctor = JS_GetPropertyStr(ctx, global, name.c_str());
         JS_SetPropertyStr(ctx, ctor, method_name.data(), js_method);
 
         JS_FreeValue(ctx, ctor);
@@ -528,7 +528,7 @@ namespace qjs {
     template <typename T>
     void Engine::register_constant(std::string_view name, T value) {
         // Convert the C++ value to a QuickJS value using the converter system
-        JSValue val = converter<T>::put(ctx.get(), value);
+        const JSValue val = converter<T>::put(ctx.get(), value);
 
         // Define the property on the global object
         // Flags: Enumerable and Configurable, but NOT Writable
