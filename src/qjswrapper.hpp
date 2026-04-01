@@ -127,6 +127,9 @@ namespace qjs {
         template <typename R, typename... Args>
         ClassBinder& static_method(std::string_view method_name, R (*func)(Args...));
 
+        template <typename F>
+        ClassBinder& static_method(std::string_view method_name, F&& f);
+
         template <typename V>
         ClassBinder& static_field(std::string_view field_name, V* data_ptr);
 
@@ -152,6 +155,9 @@ namespace qjs {
                 return converter<R>::put(ctx, f(inst, converter<std::decay_t<Args>>::get(ctx, argv[I])...));
             }
         }
+
+        template <typename R, typename... Args>
+        ClassBinder& static_method_lambda_impl(std::string_view method_name, std::function<R(Args...)> f);
 
         template <typename... Args, size_t... I>
         static T* ctor_helper(JSContext* ctx, JSValueConst* argv, std::index_sequence<I...>) {
@@ -479,6 +485,38 @@ namespace qjs {
         JS_DefinePropertyGetSet(ctx, ctor, atom, js_get, JS_UNDEFINED, JS_PROP_ENUMERABLE);
 
         JS_FreeAtom(ctx, atom);
+        JS_FreeValue(ctx, ctor);
+        JS_FreeValue(ctx, global);
+        return *this;
+    }
+
+    template <typename T>
+    template <typename F>
+    ClassBinder<T>& ClassBinder<T>::static_method(std::string_view method_name, F&& f) {
+        using Functor = typename detail::function_traits<std::decay_t<F>>::type;
+        return static_method_lambda_impl(method_name, Functor(std::forward<F>(f)));
+    }
+
+    template <typename T>
+    template <typename R, typename... Args>
+    ClassBinder<T>& ClassBinder<T>::static_method_lambda_impl(std::string_view method_name, std::function<R(Args...)> f) {
+        auto wrap = std::make_unique<std::function<R(Args...)>>(std::move(f));
+        void* raw_wrap = wrap.get();
+        engine.track(std::move(wrap));
+
+        auto trampoline = [](JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv, int magic, JSValue* data) -> JSValue {
+            auto* fn = static_cast<std::function<R(Args...)>*>(detail::ToPtr(data[0]));
+            return Engine::invoke_free_helper<R, Args...>(ctx, *fn, argv, std::make_index_sequence<sizeof...(Args)>{});
+        };
+
+        // FIX: Define the data array explicitly instead of using a compound literal cast
+        JSValue data_arr[1] = { detail::NewPtr(raw_wrap) };
+        JSValue js_method = JS_NewCFunctionData(ctx, trampoline, sizeof...(Args), 0, 1, data_arr);
+
+        JSValue global = JS_GetGlobalObject(ctx);
+        JSValue ctor = JS_GetPropertyStr(ctx, global, name.c_str());
+        JS_SetPropertyStr(ctx, ctor, method_name.data(), js_method);
+
         JS_FreeValue(ctx, ctor);
         JS_FreeValue(ctx, global);
         return *this;

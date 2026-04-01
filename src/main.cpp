@@ -145,7 +145,15 @@ int test_raylib(qjs::Engine &engine) {
         .field("a", &Color::a)
         .static_constant("BLUE", BLUE)
         .static_constant("RED", RED)
-        .static_constant("GOLD", GOLD);
+        .static_constant("GOLD", GOLD)
+        .static_method("randomColor", [] {
+            return Color{
+                static_cast<unsigned char>(GetRandomValue(0, 255)),
+                static_cast<unsigned char>(GetRandomValue(0, 255)),
+                static_cast<unsigned char>(GetRandomValue(0, 255)),
+                255
+            };
+        });
 
     engine.register_class<Vector2>("Vector2")
         .constructor<float, float>()
