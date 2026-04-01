@@ -80,6 +80,16 @@ namespace qjs {
         }
     };
 
+    template <typename R, typename... Args, size_t... I>
+    static JSValue invoke_free_helper(JSContext* ctx, std::function<R(Args...)>& f, JSValueConst* argv, std::index_sequence<I...>) {
+        if constexpr (std::is_void_v<R>) {
+            f(converter<std::decay_t<Args>>::get(ctx, argv[I])...);
+            return JS_UNDEFINED;
+        } else {
+            return converter<R>::put(ctx, f(converter<std::decay_t<Args>>::get(ctx, argv[I])...));
+        }
+    }
+
     class Engine;
 
     template <typename T>
@@ -245,16 +255,6 @@ namespace qjs {
         void register_constant(std::string_view name, T value);
 
         template <typename R, typename... Args, size_t... I>
-        static JSValue invoke_free_helper(JSContext* ctx, std::function<R(Args...)>& f, JSValueConst* argv, std::index_sequence<I...>) {
-            if constexpr (std::is_void_v<R>) {
-                f(converter<std::decay_t<Args>>::get(ctx, argv[I])...);
-                return JS_UNDEFINED;
-            } else {
-                return converter<R>::put(ctx, f(converter<std::decay_t<Args>>::get(ctx, argv[I])...));
-            }
-        }
-
-        template <typename R, typename... Args, size_t... I>
         static R invoke_raw(JSContext* ctx, std::function<R(Args...)>& f, JSValueConst* argv, std::index_sequence<I...>) {
             return f(converter<std::decay_t<Args>>::get(ctx, argv[I])...);
         }
@@ -351,7 +351,7 @@ namespace qjs {
 
         auto trampoline = [](JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv, int magic, JSValue* data) -> JSValue {
             auto* f = static_cast<Wrapper*>(detail::ToPtr(data[0]));
-            return Engine::invoke_free_helper<R, Args...>(ctx, *f, argv, std::make_index_sequence<sizeof...(Args)>{});
+            return invoke_free_helper<R, Args...>(ctx, *f, argv, std::make_index_sequence<sizeof...(Args)>{});
         };
 
         JSValue data_val = detail::NewPtr(raw_wrap);
@@ -496,7 +496,7 @@ namespace qjs {
     template <typename T>
     template <typename F>
     ClassBinder<T>& ClassBinder<T>::static_method(std::string_view method_name, F&& f) {
-        using Functor = detail::function_traits<std::decay_t<F>>::type;
+        using Functor = typename detail::function_traits<std::decay_t<F>>::type;
         return static_method_lambda_impl(method_name, Functor(std::forward<F>(f)));
     }
 
@@ -509,15 +509,15 @@ namespace qjs {
 
         auto trampoline = [](JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv, int magic, JSValue* data) -> JSValue {
             auto* fn = static_cast<std::function<R(Args...)>*>(detail::ToPtr(data[0]));
-            return Engine::invoke_free_helper<R, Args...>(ctx, *fn, argv, std::make_index_sequence<sizeof...(Args)>{});
+            return invoke_free_helper<R, Args...>(ctx, *fn, argv, std::make_index_sequence<sizeof...(Args)>{});
         };
 
         // FIX: Define the data array explicitly instead of using a compound literal cast
         JSValue data_arr[1] = { detail::NewPtr(raw_wrap) };
-        const JSValue js_method = JS_NewCFunctionData(ctx, trampoline, sizeof...(Args), 0, 1, data_arr);
+        JSValue js_method = JS_NewCFunctionData(ctx, trampoline, sizeof...(Args), 0, 1, data_arr);
 
-        const JSValue global = JS_GetGlobalObject(ctx);
-        const JSValue ctor = JS_GetPropertyStr(ctx, global, name.c_str());
+        JSValue global = JS_GetGlobalObject(ctx);
+        JSValue ctor = JS_GetPropertyStr(ctx, global, name.c_str());
         JS_SetPropertyStr(ctx, ctor, method_name.data(), js_method);
 
         JS_FreeValue(ctx, ctor);
@@ -528,7 +528,7 @@ namespace qjs {
     template <typename T>
     void Engine::register_constant(std::string_view name, T value) {
         // Convert the C++ value to a QuickJS value using the converter system
-        const JSValue val = converter<T>::put(ctx.get(), value);
+        JSValue val = converter<T>::put(ctx.get(), value);
 
         // Define the property on the global object
         // Flags: Enumerable and Configurable, but NOT Writable
