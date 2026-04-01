@@ -1,7 +1,7 @@
 #include <utility>
 
 #include "raylib.h"
-#include "qjswrapper.hpp"
+#include "lib/qjswrapper.hpp"
 #include "js/ship.h"
 
 namespace qjs {
@@ -64,7 +64,7 @@ int cpp_sub(const int a, const int b) {
 int test_math(qjs::Engine &engine) {
 
     // Bind any C++ lambda
-    engine.register_function("add", [](int a, int b) { return a + b; });
+    engine.register_function("add", [](const int a, const int b) { return a + b; });
     engine.register_function("sub", cpp_sub);
 
     // Evaluate and get result (or error)
@@ -131,11 +131,13 @@ int test_raylib(qjs::Engine &engine) {
     SetTargetFPS(60);
 
     // 2. Bind the Raylib functions we need
-    engine.register_function("clearBackground", ClearBackground);
+    engine.register_function("clearBackground", ::ClearBackground);
     engine.register_function("drawCircleV", [](const Vector2 v2, float r, Color c) { DrawCircleV(v2, r, c); });
     engine.register_function("drawText", [](const std::string& text, int x, int y, int size, Color c) {
         DrawText(text.c_str(), x, y, size, c);
     });
+
+    engine.register_constant("LOG_ALL", 0);
 
     engine.register_class<Color>("Color")
         .constructor<unsigned char, unsigned char, unsigned char, unsigned char>()

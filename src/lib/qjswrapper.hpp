@@ -241,6 +241,9 @@ namespace qjs {
             register_function(name, std::function(std::forward<F>(f)));
         }
 
+        template<class T>
+        void register_constant(std::string_view name, T value);
+
         template <typename R, typename... Args, size_t... I>
         static JSValue invoke_free_helper(JSContext* ctx, std::function<R(Args...)>& f, JSValueConst* argv, std::index_sequence<I...>) {
             if constexpr (std::is_void_v<R>) {
@@ -520,6 +523,16 @@ namespace qjs {
         JS_FreeValue(ctx, ctor);
         JS_FreeValue(ctx, global);
         return *this;
+    }
+
+    template <typename T>
+    void Engine::register_constant(std::string_view name, T value) {
+        // Convert the C++ value to a QuickJS value using the converter system
+        JSValue val = converter<T>::put(ctx.get(), value);
+
+        // Define the property on the global object
+        // Flags: Enumerable and Configurable, but NOT Writable
+        JS_DefinePropertyValueStr(ctx.get(), global_obj, name.data(), val, JS_PROP_ENUMERABLE | JS_PROP_CONFIGURABLE);
     }
 
 } // namespace qjs
