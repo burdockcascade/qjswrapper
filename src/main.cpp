@@ -63,9 +63,11 @@ int cpp_sub(const int a, const int b) {
 
 int test_math(qjs::Engine &engine) {
 
+    auto global = engine.get_global_object();
+
     // Bind any C++ lambda
-    engine.register_function("add", [](const int a, const int b) { return a + b; });
-    engine.register_function("sub", cpp_sub);
+    global.register_function("add", [](const int a, const int b) { return a + b; });
+    global.register_function("sub", cpp_sub);
 
     // Evaluate and get result (or error)
     auto res = engine.eval("add(5, sub(20 - 10))");
@@ -101,7 +103,10 @@ public:
 };
 
 int test_ship(qjs::Engine &engine) {
-    engine.register_class<Ship>("Ship")
+
+    auto global = engine.get_global_object();
+
+    global.register_class<Ship>("Ship")
         .constructor([](const std::string& name, int fuel) {
             auto s = new Ship(name, fuel);
             return s;
@@ -130,16 +135,18 @@ int test_raylib(qjs::Engine &engine) {
     InitWindow(800, 450, "QuickJS + Raylib File Loader");
     SetTargetFPS(60);
 
+    auto global = engine.get_global_object();
+
     // 2. Bind the Raylib functions we need
-    engine.register_function("clearBackground", ::ClearBackground);
-    engine.register_function("drawCircleV", [](const Vector2 v2, float r, Color c) { DrawCircleV(v2, r, c); });
-    engine.register_function("drawText", [](const std::string& text, int x, int y, int size, Color c) {
+    global.register_function("clearBackground", ::ClearBackground);
+    global.register_function("drawCircleV", [](const Vector2 v2, float r, Color c) { DrawCircleV(v2, r, c); });
+    global.register_function("drawText", [](const std::string& text, int x, int y, int size, Color c) {
         DrawText(text.c_str(), x, y, size, c);
     });
 
-    engine.register_constant("LOG_ALL", 0);
+    global.register_constant("LOG_ALL", 0);
 
-    engine.register_class<Color>("Color")
+    global.register_class<Color>("Color")
         .constructor<unsigned char, unsigned char, unsigned char, unsigned char>()
         .field("r", &Color::r)
         .field("g", &Color::g)
@@ -157,7 +164,7 @@ int test_raylib(qjs::Engine &engine) {
             };
         });
 
-    engine.register_class<Vector2>("Vector2")
+    global.register_class<Vector2>("Vector2")
         .constructor<float, float>()
         .field("x", &Vector2::x)
         .field("y", &Vector2::y)
@@ -187,10 +194,12 @@ int test_raylib(qjs::Engine &engine) {
 }
 
 void add_console_utilities(qjs::Engine& engine) {
-    engine.register_function("print", [](std::string msg) {
+    auto global = engine.get_global_object();
+    auto console = engine.create_object("console");
+
+    console.register_function("log", [](std::string msg) {
         std::cout << "[JS] " << msg << std::endl;
     });
-    engine.eval("var console = { log: function(...args) { print(args.join(' ')); } };");
 }
 
 // --- Usage ---
