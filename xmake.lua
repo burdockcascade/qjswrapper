@@ -1,8 +1,7 @@
 add_rules("mode.debug", "mode.release")
 set_languages("cxx23")
 
-add_requires("quickjs-ng", {optional = true})
-add_requires("quickjs", {optional = true})
+add_requires("quickjs-ng")
 add_requires("raylib")
 
 task("ship")
@@ -16,7 +15,27 @@ task("ship")
     }
 
 target("qjswrapper")
-    set_kind("binary")
-    add_files("src/*.cpp")
+    set_kind("headeronly")
+    add_headerfiles("src/lib/*.hpp")
     add_packages("quickjs-ng")
+    add_packages("raylib")
+
+
+target("test_math")
+    set_kind("binary")
+    add_files("src/tests/test_math.cpp")
+    add_deps("qjswrapper")
+    add_packages("quickjs-ng") -- fixme: should be transitive from qjswrapper, but for some reason isn't
+
+target("test_ship")
+    set_kind("binary")
+    add_files("src/tests/test_ship.cpp")
+    add_deps("qjswrapper")
+    add_packages("quickjs-ng") -- fixme: should be transitive from qjswrapper, but for some reason isn't
+    
+target("test_raylib")
+    set_kind("binary")
+    add_files("src/tests/test_raylib.cpp")
+    add_deps("qjswrapper")
+    add_packages("quickjs-ng") -- fixme: should be transitive from qjswrapper, but for some reason isn't
     add_packages("raylib")

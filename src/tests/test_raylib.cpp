@@ -1,8 +1,6 @@
-#include <utility>
-
+#include "../lib/qjswrapper.hpp"
+#include <iostream>
 #include "raylib.h"
-#include "lib/qjswrapper.hpp"
-#include "js/ship.h"
 
 namespace qjs {
 
@@ -56,81 +54,20 @@ namespace qjs {
 
 }
 
-
-int cpp_sub(const int a, const int b) {
-    return a - b;
-}
-
-int test_math(qjs::Engine &engine) {
-
+void add_console_utilities(qjs::Engine& engine) {
     auto global = engine.get_global_object();
+    auto console = engine.create_object("console");
 
-    // Bind any C++ lambda
-    global.register_function("add", [](const int a, const int b) { return a + b; });
-    global.register_function("sub", cpp_sub);
-
-    // Evaluate and get result (or error)
-    auto res = engine.eval("add(5, sub(20 - 10))");
-
-    if (res) {
-        std::cout << "Result: " << *res << "\n";
-    } else {
-        std::cerr << "JS Error: " << res.error() << "\n";
-    }
-    return 0;
-}
-
-class Ship {
-public:
-    Ship(std::string name, int fuel) : name(name), fuel(fuel) {
-        std::cout << "[C++] Ship '" << name << "' constructed with " << fuel << " fuel.\n";
-    }
-
-    void fly(int distance) {
-        if (fuel >= distance) {
-            fuel -= distance;
-            std::cout << "[C++] " << name << " flew " << distance << " units. Fuel left: " << fuel << "\n";
-        } else {
-            std::cout << "[C++] " << name << " out of fuel!\n";
-        }
-    }
-
-    int get_fuel() const { return fuel; }
-    std::string get_name() const { return name; }
-
-    std::string name;
-    int fuel;
-};
-
-int test_ship(qjs::Engine &engine) {
-
-    auto global = engine.get_global_object();
-
-    global.register_class<Ship>("Ship")
-        .constructor([](const std::string& name, int fuel) {
-            auto s = new Ship(name, fuel);
-            return s;
-        })
-        .method("fly", &Ship::fly)
-        .method("refuel", [](Ship* s, int amount) {
-            s->fuel += amount;
-            std::cout << s->name << " refueled by " << amount << std::endl;
-        })
-        .method("getFuel", &Ship::get_fuel)
-        .method("getName", &Ship::get_name)
-        .field("fuel", &Ship::fuel)
-        .field("name", &Ship::name);
-
-    // Fix warning C4834 by handling the expected result
-    if (auto result = engine.run_bytecode(qjsc_ship, qjsc_ship_size); !result) {
-        std::cerr << "Script Error: " << result.error() << "\n";
-    }
-
-    return 0;
+    console.register_function("log", [](std::string msg) {
+        std::cout << "[JS] " << msg << std::endl;
+    });
 }
 
 // this tests running a file with structs and functions
-int test_raylib(qjs::Engine &engine) {
+int main() {
+
+    qjs::Engine engine;     
+
     // 1. Setup Raylib
     InitWindow(800, 450, "QuickJS + Raylib File Loader");
     SetTargetFPS(60);
@@ -192,49 +129,4 @@ int test_raylib(qjs::Engine &engine) {
 
     CloseWindow();
     return 0;
-}
-
-void add_console_utilities(qjs::Engine& engine) {
-    auto global = engine.get_global_object();
-    auto console = engine.create_object("console");
-
-    console.register_function("log", [](std::string msg) {
-        std::cout << "[JS] " << msg << std::endl;
-    });
-}
-
-// --- Usage ---
-int main(int argc, char* argv[]) {
-    // Check if an argument was provided
-    if (argc < 2) {
-        std::cout << "Usage: qjs_test [test_name]\n";
-        std::cout << "Available tests: math, ship, raylib\n";
-        return 1;
-    }
-
-    // Convert the argument to a std::string for easy comparison
-    std::string test_to_run = argv[1];
-
-    qjs::Engine engine;
-
-    add_console_utilities(engine);
-
-    // Dispatch to the correct test function
-    if (test_to_run == "math") {
-        std::cout << "--- Running Math Test ---\n";
-        return test_math(engine);
-    }
-    else if (test_to_run == "ship") {
-        std::cout << "--- Running Ship Test ---\n";
-        return test_ship(engine);
-    }
-    else if (test_to_run == "raylib") {
-        std::cout << "--- Running Raylib Test ---\n";
-        return test_raylib(engine);
-    }
-    else {
-        std::cerr << "Unknown test: " << test_to_run << "\n";
-        std::cerr << "Try: math, ship, or raylib\n";
-        return 1;
-    }
 }

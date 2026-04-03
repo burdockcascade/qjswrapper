@@ -1,5 +1,7 @@
 #pragma once
 
+// This wrapper is generic and does not depend on raylib
+
 #include <iostream>
 #include <string>
 #include <utility>
@@ -44,8 +46,8 @@ namespace qjs {
         static JSValue put(JSContext* ctx, const T& val) {
             if constexpr (std::is_same_v<T, bool>) {
                 return JS_NewBool(ctx, val);
-            } else if constexpr (std::integral<T>) {
-                return JS_NewInt32(ctx, static_cast<int32_t>(val));
+            } else if constexpr (std::is_integral_v<T> || std::is_enum_v<T>) {
+                return JS_NewInt64(ctx, static_cast<int64_t>(val));
             } else if constexpr (std::floating_point<T>) {
                 return JS_NewFloat64(ctx, static_cast<double>(val));
             } else if constexpr (std::is_convertible_v<T, std::string_view>) {
@@ -91,6 +93,11 @@ namespace qjs {
 
     class Engine;
 
+    struct ConstructorEntry {
+        int argc;
+        std::function<void*(JSContext*, JSValueConst*)> invoker;
+    };
+
     template <typename T>
     class ClassBinder {
         JSContext* ctx;
@@ -99,9 +106,15 @@ namespace qjs {
         std::string name;
         Engine& engine;
 
+        struct ConstructorEntry {
+            int argc;
+            std::function<T*(JSContext*, JSValueConst*)> invoker;
+        };
+        std::vector<ConstructorEntry> ctors;
+
     public:
         ClassBinder(JSContext* c, JSValue p, JSClassID id, std::string_view n, Engine& e)
-            : ctx(c), proto(p), class_id(id), name(n), engine(e) {}
+                : ctx(c), proto(p), class_id(id), name(n), engine(e) {}
 
         template <typename R, typename... Args>
         ClassBinder& method(this auto& self, std::string_view name, R (T::*func)(Args...)) {
@@ -116,18 +129,9 @@ namespace qjs {
 
         template <typename F>
         requires (!std::is_member_function_pointer_v<std::decay_t<F>>)
-        ClassBinder& method(std::string_view name, F&& f) {
+        ClassBinder& method(std::string_view method_name, F&& f) {
             using Functor = detail::function_traits<std::decay_t<F>>::type;
-            return method_lambda_impl(name, Functor(std::forward<F>(f)));
-        }
-
-        template <typename... Args>
-        ClassBinder& constructor();
-
-        template <typename F>
-        ClassBinder& constructor(F&& f) {
-            using Functor = detail::function_traits<std::decay_t<F>>::type;
-            return constructor_lambda_impl(Functor(std::forward<F>(f)));
+            return method_lambda_impl(method_name, Functor(std::forward<F>(f)));
         }
 
         template <typename V>
@@ -135,6 +139,12 @@ namespace qjs {
 
         template <typename R, typename... Args>
         ClassBinder& static_method(std::string_view method_name, R (*func)(Args...));
+
+        template<class ... Args>
+        ClassBinder& constructor();
+
+        template<class F>
+        ClassBinder& constructor(F &&f);
 
         template <typename F>
         ClassBinder& static_method(std::string_view method_name, F&& f);
@@ -151,6 +161,8 @@ namespace qjs {
 
         template <typename R, typename... Args>
         ClassBinder& method_lambda_impl(std::string_view method_name, std::function<R(T*, Args...)> f);
+
+        ClassBinder& update_constructor_bit();
 
         template <typename R, typename... Args>
         ClassBinder& constructor_lambda_impl(std::function<R(Args...)> f);
@@ -171,7 +183,7 @@ namespace qjs {
         JSContext* ctx;
         JSValue obj_this;
         Engine& engine;
-        std::string obj_name;
+        std::string obj_name{};
 
     public:
         ObjectBinder(JSRuntime* r, JSContext* c, JSValue v, Engine& e, std::string n) : rt(r), ctx(c), obj_this(v), engine(e), obj_name(std::move(n)) {}
@@ -202,24 +214,13 @@ namespace qjs {
         }
         ~Engine() { JS_FreeValue(ctx.get(), global_obj); }
 
-        std::expected<std::string, std::string> eval(std::string_view code, std::string_view file = "eval.js") const {
-            return wrap_result(JS_Eval(ctx.get(), code.data(), code.size(), file.data(), JS_EVAL_TYPE_GLOBAL));
-        }
+        // Script execution
+        inline std::expected<std::string, std::string> eval_global(std::string_view code, std::string_view file) const;
+        inline std::expected<std::string, std::string> eval_module(std::string_view code, std::string_view file) const;
+        inline std::expected<std::string, std::string> run_file(const std::filesystem::path& p) const;
+        inline std::expected<std::string, std::string> run_bytecode(const uint8_t* bytecode, size_t len) const;
 
-        std::expected<std::string, std::string> run_file(const std::filesystem::path& p) const {
-            std::ifstream f(p);
-            if (!f) return std::unexpected("File not found: " + p.string());
-            std::stringstream b;
-            b << f.rdbuf();
-            return eval(b.str(), p.filename().string());
-        }
-
-        std::expected<std::string, std::string> run_bytecode(const uint8_t* bytecode, size_t len) const {
-            const JSValue obj = JS_ReadObject(ctx.get(), bytecode, len, JS_READ_OBJ_BYTECODE);
-            if (JS_IsException(obj)) return wrap_result(obj);
-            return wrap_result(JS_EvalFunction(ctx.get(), obj));
-        }
-
+        // Object binding
         inline ObjectBinder create_object(std::string_view name);
         inline ObjectBinder get_global_object();
 
@@ -262,7 +263,29 @@ namespace qjs {
 
     };
 
-    // ==== IMPLEMENTATION ====
+    // ==== INLINE IMPLEMENTATION ====
+
+    inline std::expected<std::string, std::string> Engine::eval_global(std::string_view code, std::string_view filename) const {
+        return wrap_result(JS_Eval(ctx.get(), code.data(), code.size(), filename.data(), JS_EVAL_TYPE_GLOBAL));
+    }
+
+    inline std::expected<std::string, std::string> Engine::eval_module(std::string_view code, std::string_view filename) const {
+        return wrap_result(JS_Eval(ctx.get(), code.data(), code.size(), filename.data(), JS_EVAL_TYPE_MODULE));
+    }
+
+    inline std::expected<std::string, std::string> Engine::run_bytecode(const uint8_t* bytecode, size_t len) const {
+        const JSValue obj = JS_ReadObject(ctx.get(), bytecode, len, JS_READ_OBJ_BYTECODE);
+        if (JS_IsException(obj)) return wrap_result(obj);
+        return wrap_result(JS_EvalFunction(ctx.get(), obj));
+    }
+
+    inline std::expected<std::string, std::string> Engine::run_file(const std::filesystem::path& p) const {
+        std::ifstream f(p);
+        if (!f) return std::unexpected("File not found: " + p.string());
+        std::stringstream b;
+        b << f.rdbuf();
+        return eval_global(b.str(), p.filename().string());
+    }
 
     inline ObjectBinder Engine::create_object(std::string_view name) {
         const JSValue obj = JS_NewObject(ctx.get()); // Extracting raw pointer from unique_ptr
@@ -284,10 +307,18 @@ namespace qjs {
         return ObjectBinder(rt.get(), ctx.get(), global_obj, *this, "global");
     }
 
-   inline std::expected<std::string, std::string> Engine::wrap_result(const JSValue v) const {
+    inline std::expected<std::string, std::string> Engine::wrap_result(const JSValue v) const {
         if (JS_IsException(v)) {
-            JSValue e = JS_GetException(ctx.get());
+            const JSValue e = JS_GetException(ctx.get());
             std::string msg = converter<std::string>::get(ctx.get(), e);
+
+            // Try to get the stack trace
+            const JSValue stack = JS_GetPropertyStr(ctx.get(), e, "stack");
+            if (!JS_IsUndefined(stack)) {
+                msg += "\n" + converter<std::string>::get(ctx.get(), stack);
+            }
+
+            JS_FreeValue(ctx.get(), stack);
             JS_FreeValue(ctx.get(), e);
             JS_FreeValue(ctx.get(), v);
             return std::unexpected(msg);
@@ -297,17 +328,32 @@ namespace qjs {
         return res;
     }
 
+    // ==== TEMPLATE IMPLEMENTATIONS ====
+
     template <typename T>
     auto ObjectBinder::register_class(std::string_view name) {
-        JSClassID id = 0; JS_NewClassID(rt, &id);
+        JSClassID id = 0;
+        JS_NewClassID(rt, &id);
+
+        // Define how JS objects of this class are deleted
         const JSClassDef def = { name.data(), [](JSRuntime* rt, JSValue val) {
             T* ptr = static_cast<T*>(JS_GetOpaque(val, 0));
             delete ptr;
         }};
         JS_NewClass(rt, id, &def);
+
         JSValue proto = JS_NewObject(ctx);
         JS_SetClassProto(ctx, id, proto);
-        return ClassBinder<T>(ctx, proto, id, name, engine);
+
+        // Create the ClassBinder
+        ClassBinder<T> binder(ctx, proto, id, name, engine);
+
+        // Register a default constructor (no arguments) automatically
+        if constexpr (std::is_default_constructible_v<T>) {
+            binder.template constructor<>();
+        }
+
+        return binder;
     }
 
     template<typename R, typename... Args>
@@ -327,34 +373,6 @@ namespace qjs {
     template<typename F>
     void ObjectBinder::register_function(std::string_view name, F&& f) {
         register_function(name, std::function(std::forward<F>(f)));
-    }
-
-    template <typename T>
-    template <typename R, typename... Args>
-    ClassBinder<T>& ClassBinder<T>::constructor_lambda_impl(std::function<R(Args...)> f) {
-        static_assert(std::is_same_v<R, T*>, "Constructor lambda must return T*");
-        auto wrap = std::make_unique<std::function<R(Args...)>>(std::move(f));
-        void* raw_wrap = wrap.get();
-        engine.track(std::move(wrap));
-        JSValue data[2] = { detail::NewPtr(raw_wrap), JS_NewInt32(ctx, class_id) };
-        auto ctor_wrap = [](JSContext* ctx, JSValueConst new_target, int argc, JSValueConst* argv, int magic, JSValue* data) -> JSValue {
-            if (JS_IsUndefined(new_target)) return JS_ThrowTypeError(ctx, "Use 'new'");
-            auto* fn = static_cast<std::function<R(Args...)>*>(detail::ToPtr(data[0]));
-            int32_t id; JS_ToInt32(ctx, &id, data[1]);
-            T* instance = Engine::invoke_raw<R, Args...>(ctx, *fn, argv, std::make_index_sequence<sizeof...(Args)>{});
-            JSValue proto = JS_GetPropertyStr(ctx, new_target, "prototype");
-            JSValue obj = JS_NewObjectClass(ctx, id);
-            JS_SetPrototype(ctx, obj, proto);
-            JS_FreeValue(ctx, proto);
-            JS_SetOpaque(obj, instance);
-            return obj;
-        };
-        JSValue ctor_func = JS_NewCFunctionData(ctx, ctor_wrap, sizeof...(Args), 0, 2, data);
-        JS_SetConstructorBit(ctx, ctor_func, true);
-        JSValue global = JS_GetGlobalObject(ctx);
-        JS_SetPropertyStr(ctx, global, name.c_str(), ctor_func);
-        JS_FreeValue(ctx, global);
-        return *this;
     }
 
     template <typename T>
@@ -423,12 +441,49 @@ namespace qjs {
 
     template <typename T>
     template <typename... Args>
-        ClassBinder<T>& ClassBinder<T>::constructor() {
-        JSValue data = JS_NewInt32(ctx, static_cast<int32_t>(class_id));
-        auto ctor_wrap = [](JSContext* ctx, JSValueConst new_target, int argc, JSValueConst* argv, int magic, JSValue* data) -> JSValue {
-            if (JS_IsUndefined(new_target)) return JS_ThrowTypeError(ctx, "Use 'new'");
-            int32_t id; JS_ToInt32(ctx, &id, data[0]);
-            T* instance = ctor_helper<Args...>(ctx, argv, std::make_index_sequence<sizeof...(Args)>{});
+    ClassBinder<T>& ClassBinder<T>::constructor() {
+        ctors.push_back({
+            static_cast<int>(sizeof...(Args)),
+            [](JSContext* ctx, JSValueConst* argv) {
+                return ctor_helper<Args...>(ctx, argv, std::make_index_sequence<sizeof...(Args)>{});
+            }
+        });
+        return update_constructor_bit();
+    }
+
+    // Register a custom lambda constructor
+    template <typename T>
+    template <typename F>
+    ClassBinder<T>& ClassBinder<T>::constructor(F&& f) {
+        using Functor = detail::function_traits<std::decay_t<F>>::type;
+        return constructor_lambda_impl(Functor(std::forward<F>(f)));
+    }
+
+    template <typename T>
+    ClassBinder<T>& ClassBinder<T>::update_constructor_bit() {
+        // Capture the ctors vector by moving it to a shared pointer so the JS closure can access it
+        auto shared_ctors = std::make_shared<std::vector<ConstructorEntry>>(std::move(this->ctors));
+        void* raw_ptr = shared_ctors.get();
+        engine.track(shared_ctors);
+
+        JSValue data[2] = { detail::NewPtr(raw_ptr), JS_NewInt32(ctx, class_id) };
+
+        auto dispatcher = [](JSContext* ctx, JSValueConst new_target, int argc, JSValueConst* argv, int magic, JSValue* data) -> JSValue {
+            if (JS_IsUndefined(new_target)) return JS_ThrowTypeError(ctx, "Constructor must be called with 'new'");
+
+            auto* entries = static_cast<std::vector<ConstructorEntry>*>(detail::ToPtr(data[0]));
+            int32_t id; JS_ToInt32(ctx, &id, data[1]);
+
+            T* instance = nullptr;
+            for (const auto& entry : *entries) {
+                if (entry.argc == argc) {
+                    instance = entry.invoker(ctx, argv);
+                    break;
+                }
+            }
+
+            if (!instance) return JS_ThrowTypeError(ctx, "No constructor found with %d arguments", argc);
+
             JSValue proto = JS_GetPropertyStr(ctx, new_target, "prototype");
             JSValue obj = JS_NewObjectClass(ctx, id);
             JS_SetPrototype(ctx, obj, proto);
@@ -436,12 +491,35 @@ namespace qjs {
             JS_SetOpaque(obj, instance);
             return obj;
         };
-        JSValue ctor_func = JS_NewCFunctionData(ctx, ctor_wrap, sizeof...(Args), 0, 1, &data);
+
+        JSValue ctor_func = JS_NewCFunctionData(ctx, dispatcher, 0, 0, 2, data);
         JS_SetConstructorBit(ctx, ctor_func, true);
+
         JSValue global = JS_GetGlobalObject(ctx);
         JS_SetPropertyStr(ctx, global, name.c_str(), ctor_func);
         JS_FreeValue(ctx, global);
+
+        // Keep the internal list for further additions if needed
+        this->ctors = *shared_ctors;
         return *this;
+    }
+
+    template <typename T>
+    template <typename R, typename... Args>
+    ClassBinder<T>& ClassBinder<T>::constructor_lambda_impl(std::function<R(Args...)> f) {
+        static_assert(std::is_same_v<R, T*>, "Constructor lambda must return T*");
+
+        auto wrap = std::make_shared<std::function<R(Args...)>>(std::move(f));
+        engine.track(wrap);
+
+        ctors.push_back({
+            static_cast<int>(sizeof...(Args)),
+            [wrap](JSContext* ctx, JSValueConst* argv) {
+                return Engine::invoke_raw<R, Args...>(ctx, *wrap, argv, std::make_index_sequence<sizeof...(Args)>{});
+            }
+        });
+
+        return update_constructor_bit();
     }
 
     template <typename T>
@@ -540,7 +618,7 @@ namespace qjs {
         const JSAtom atom = JS_NewAtom(ctx, field_name.data());
 
         // Register as Read-Only (JS_PROP_C_W_E means Configurable, NOT Writable, Enumerable)
-        JS_DefinePropertyGetSet(ctx, ctor, atom, js_get, JS_UNDEFINED, JS_PROP_ENUMERABLE);
+        JS_DefinePropertyGetSet(ctx, ctor, atom, js_get, JS_UNDEFINED, JS_PROP_WRITABLE | JS_PROP_ENUMERABLE);
 
         JS_FreeAtom(ctx, atom);
         JS_FreeValue(ctx, ctor);

@@ -5,46 +5,96 @@
 # project
 cmake_minimum_required(VERSION 3.15.0)
 cmake_policy(SET CMP0091 NEW)
-project(qjswrapper LANGUAGES CXX)
+project(test_ship LANGUAGES CXX)
 set(CURRENT_COMPILER_ID ${CMAKE_CXX_COMPILER_ID})
 
 # target
-add_executable(qjswrapper "")
-set_target_properties(qjswrapper PROPERTIES OUTPUT_NAME "qjswrapper")
-set_target_properties(qjswrapper PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/build/windows/x64/release")
-target_include_directories(qjswrapper SYSTEM PRIVATE
+add_library(qjswrapper INTERFACE)
+# target
+add_executable(test_math "")
+set_target_properties(test_math PROPERTIES OUTPUT_NAME "test_math")
+set_target_properties(test_math PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/build/windows/x64/release")
+add_dependencies(test_math qjswrapper)
+target_include_directories(test_math SYSTEM PRIVATE
     C:/Users/peter/AppData/Local/.xmake/packages/q/quickjs-ng/v0.13.0/b90f1e05389342e283b9224b7684f3ac/include
-    C:/Users/peter/AppData/Local/.xmake/packages/r/raylib/5.5/ff3f87ca824444c78f4ea6c42aea7e19/include
 )
-target_compile_options(qjswrapper PRIVATE
+target_compile_options(test_math PRIVATE
     $<$<COMPILE_LANGUAGE:C>:-DNDEBUG>
     $<$<COMPILE_LANGUAGE:CXX>:-DNDEBUG>
     $<$<COMPILE_LANGUAGE:CUDA>:-DNDEBUG>
 )
 if(CURRENT_COMPILER_ID STREQUAL "MSVC")
-    target_compile_options(qjswrapper PRIVATE /EHsc)
+    target_compile_options(test_math PRIVATE /EHsc)
 elseif(CURRENT_COMPILER_ID STREQUAL "Clang")
-    target_compile_options(qjswrapper PRIVATE -fexceptions)
-    target_compile_options(qjswrapper PRIVATE -fcxx-exceptions)
+    target_compile_options(test_math PRIVATE -fexceptions)
+    target_compile_options(test_math PRIVATE -fcxx-exceptions)
 elseif(CURRENT_COMPILER_ID STREQUAL "GNU")
-    target_compile_options(qjswrapper PRIVATE -fexceptions)
+    target_compile_options(test_math PRIVATE -fexceptions)
 endif()
-set_target_properties(qjswrapper PROPERTIES CXX_EXTENSIONS OFF)
-target_compile_features(qjswrapper PRIVATE cxx_std_23)
+set_target_properties(test_math PROPERTIES CXX_EXTENSIONS OFF)
+target_compile_features(test_math PRIVATE cxx_std_23)
 if(CURRENT_COMPILER_ID STREQUAL "MSVC")
-    target_compile_options(qjswrapper PRIVATE $<$<CONFIG:Release>:-O2>)
+    target_compile_options(test_math PRIVATE $<$<CONFIG:Release>:-O2>)
 else()
-    target_compile_options(qjswrapper PRIVATE -O3)
+    target_compile_options(test_math PRIVATE -O3)
 endif()
 if(CURRENT_COMPILER_ID STREQUAL "MSVC")
 else()
-    target_compile_options(qjswrapper PRIVATE -fvisibility=hidden)
+    target_compile_options(test_math PRIVATE -fvisibility=hidden)
 endif()
 if(CURRENT_COMPILER_ID STREQUAL "MSVC")
-    set_property(TARGET qjswrapper PROPERTY
+    set_property(TARGET test_math PROPERTY
         MSVC_RUNTIME_LIBRARY "MultiThreadedDLL")
 endif()
-target_link_libraries(qjswrapper PRIVATE
+target_link_libraries(test_math PRIVATE
+    qjs
+)
+target_link_directories(test_math PRIVATE
+    C:/Users/peter/AppData/Local/.xmake/packages/q/quickjs-ng/v0.13.0/b90f1e05389342e283b9224b7684f3ac/lib
+)
+# private sourcefiles from sourcebatch c++.build for target test_math
+target_sources(test_math PRIVATE 
+    src/tests/test_math.cpp
+)
+
+# target
+add_executable(test_raylib "")
+set_target_properties(test_raylib PROPERTIES OUTPUT_NAME "test_raylib")
+set_target_properties(test_raylib PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/build/windows/x64/release")
+add_dependencies(test_raylib qjswrapper)
+target_include_directories(test_raylib SYSTEM PRIVATE
+    C:/Users/peter/AppData/Local/.xmake/packages/q/quickjs-ng/v0.13.0/b90f1e05389342e283b9224b7684f3ac/include
+    C:/Users/peter/AppData/Local/.xmake/packages/r/raylib/5.5/ff3f87ca824444c78f4ea6c42aea7e19/include
+)
+target_compile_options(test_raylib PRIVATE
+    $<$<COMPILE_LANGUAGE:C>:-DNDEBUG>
+    $<$<COMPILE_LANGUAGE:CXX>:-DNDEBUG>
+    $<$<COMPILE_LANGUAGE:CUDA>:-DNDEBUG>
+)
+if(CURRENT_COMPILER_ID STREQUAL "MSVC")
+    target_compile_options(test_raylib PRIVATE /EHsc)
+elseif(CURRENT_COMPILER_ID STREQUAL "Clang")
+    target_compile_options(test_raylib PRIVATE -fexceptions)
+    target_compile_options(test_raylib PRIVATE -fcxx-exceptions)
+elseif(CURRENT_COMPILER_ID STREQUAL "GNU")
+    target_compile_options(test_raylib PRIVATE -fexceptions)
+endif()
+set_target_properties(test_raylib PROPERTIES CXX_EXTENSIONS OFF)
+target_compile_features(test_raylib PRIVATE cxx_std_23)
+if(CURRENT_COMPILER_ID STREQUAL "MSVC")
+    target_compile_options(test_raylib PRIVATE $<$<CONFIG:Release>:-O2>)
+else()
+    target_compile_options(test_raylib PRIVATE -O3)
+endif()
+if(CURRENT_COMPILER_ID STREQUAL "MSVC")
+else()
+    target_compile_options(test_raylib PRIVATE -fvisibility=hidden)
+endif()
+if(CURRENT_COMPILER_ID STREQUAL "MSVC")
+    set_property(TARGET test_raylib PROPERTY
+        MSVC_RUNTIME_LIBRARY "MultiThreadedDLL")
+endif()
+target_link_libraries(test_raylib PRIVATE
     qjs
     raylib
     opengl32
@@ -53,12 +103,59 @@ target_link_libraries(qjswrapper PRIVATE
     winmm
     shell32
 )
-target_link_directories(qjswrapper PRIVATE
+target_link_directories(test_raylib PRIVATE
     C:/Users/peter/AppData/Local/.xmake/packages/q/quickjs-ng/v0.13.0/b90f1e05389342e283b9224b7684f3ac/lib
     C:/Users/peter/AppData/Local/.xmake/packages/r/raylib/5.5/ff3f87ca824444c78f4ea6c42aea7e19/lib
 )
-# private sourcefiles from sourcebatch c++.build for target qjswrapper
-target_sources(qjswrapper PRIVATE 
-    src/main.cpp
+# private sourcefiles from sourcebatch c++.build for target test_raylib
+target_sources(test_raylib PRIVATE 
+    src/tests/test_raylib.cpp
+)
+
+# target
+add_executable(test_ship "")
+set_target_properties(test_ship PROPERTIES OUTPUT_NAME "test_ship")
+set_target_properties(test_ship PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/build/windows/x64/release")
+add_dependencies(test_ship qjswrapper)
+target_include_directories(test_ship SYSTEM PRIVATE
+    C:/Users/peter/AppData/Local/.xmake/packages/q/quickjs-ng/v0.13.0/b90f1e05389342e283b9224b7684f3ac/include
+)
+target_compile_options(test_ship PRIVATE
+    $<$<COMPILE_LANGUAGE:C>:-DNDEBUG>
+    $<$<COMPILE_LANGUAGE:CXX>:-DNDEBUG>
+    $<$<COMPILE_LANGUAGE:CUDA>:-DNDEBUG>
+)
+if(CURRENT_COMPILER_ID STREQUAL "MSVC")
+    target_compile_options(test_ship PRIVATE /EHsc)
+elseif(CURRENT_COMPILER_ID STREQUAL "Clang")
+    target_compile_options(test_ship PRIVATE -fexceptions)
+    target_compile_options(test_ship PRIVATE -fcxx-exceptions)
+elseif(CURRENT_COMPILER_ID STREQUAL "GNU")
+    target_compile_options(test_ship PRIVATE -fexceptions)
+endif()
+set_target_properties(test_ship PROPERTIES CXX_EXTENSIONS OFF)
+target_compile_features(test_ship PRIVATE cxx_std_23)
+if(CURRENT_COMPILER_ID STREQUAL "MSVC")
+    target_compile_options(test_ship PRIVATE $<$<CONFIG:Release>:-O2>)
+else()
+    target_compile_options(test_ship PRIVATE -O3)
+endif()
+if(CURRENT_COMPILER_ID STREQUAL "MSVC")
+else()
+    target_compile_options(test_ship PRIVATE -fvisibility=hidden)
+endif()
+if(CURRENT_COMPILER_ID STREQUAL "MSVC")
+    set_property(TARGET test_ship PROPERTY
+        MSVC_RUNTIME_LIBRARY "MultiThreadedDLL")
+endif()
+target_link_libraries(test_ship PRIVATE
+    qjs
+)
+target_link_directories(test_ship PRIVATE
+    C:/Users/peter/AppData/Local/.xmake/packages/q/quickjs-ng/v0.13.0/b90f1e05389342e283b9224b7684f3ac/lib
+)
+# private sourcefiles from sourcebatch c++.build for target test_ship
+target_sources(test_ship PRIVATE 
+    src/tests/test_ship.cpp
 )
 
