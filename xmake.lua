@@ -17,8 +17,6 @@ target("qjswrapper")
     set_kind("headeronly")
     add_headerfiles("src/lib/*.hpp")
     add_packages("quickjs-ng")
-    add_packages("raylib")
-
 
 target("test_math")
     set_kind("binary")
