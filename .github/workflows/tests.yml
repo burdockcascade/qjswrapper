@@ -25,4 +25,4 @@ jobs:
       - name: Run Ship Tests
         run: xmake run test_ship
       - name: Run Errors Tests
-      run: xmake run test_errors
+        run: xmake run test_errors
