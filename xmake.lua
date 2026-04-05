@@ -39,3 +39,9 @@ target("test_raylib")
     add_deps("qjswrapper")
     add_packages("quickjs-ng") -- fixme: should be transitive from qjswrapper, but for some reason isn't
     add_packages("raylib")
+
+target("test_errors")
+    set_kind("binary")
+    add_files("src/tests/test_errors.cpp")
+    add_deps("qjswrapper")
+    add_packages("quickjs-ng")

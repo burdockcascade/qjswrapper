@@ -1,15 +1,7 @@
-// Instantiate our C++ class from JS
+// Instantiate and perform actions
 const voyager = new Ship("Voyager", 10);
-globalThis.voyager = voyager;
-
-console.log(`Ship Name: ${voyager.getName()}`);
-console.log("Current Fuel:", voyager.fuel);
-
 voyager.refuel(30);
-
-// Call C++ methods
 voyager.fly(20);
-voyager.fly(30);
 
-console.log(`Final Fuel: ${voyager.getFuel()}`);
-console.log("Fuel after flight:", voyager.fuel);
+// Export to global scope so C++ can validate the final state
+globalThis.voyager = voyager;
