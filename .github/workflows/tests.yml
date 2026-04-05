@@ -16,6 +16,13 @@ jobs:
         uses: xmake-io/github-action-setup-xmake@v1
         with:
           xmake-version: latest
+      - name: Install GCC 14 manually
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt update
+          sudo apt install -y gcc-14 g++-14
+          sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-14 100 --slave /usr/bin/g++ g++ /usr/bin/g++-14
+          sudo update-alternatives --set gcc /usr/bin/gcc-14
       - name: Configure and Build
         run: |
           xmake f -y
