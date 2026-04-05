@@ -1,8 +1,7 @@
 add_rules("mode.debug", "mode.release")
 set_languages("cxx23")
 
-add_requires("quickjs-ng")
-add_requires("raylib")
+add_requires("quickjs-ng 0.13.0")
 
 task("ship")
     on_run(function ()
@@ -33,13 +32,6 @@ target("test_ship")
     add_deps("qjswrapper")
     add_packages("quickjs-ng") -- fixme: should be transitive from qjswrapper, but for some reason isn't
     
-target("test_raylib")
-    set_kind("binary")
-    add_files("src/tests/test_raylib.cpp")
-    add_deps("qjswrapper")
-    add_packages("quickjs-ng") -- fixme: should be transitive from qjswrapper, but for some reason isn't
-    add_packages("raylib")
-
 target("test_errors")
     set_kind("binary")
     add_files("src/tests/test_errors.cpp")
