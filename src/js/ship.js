@@ -1,5 +1,6 @@
 // Instantiate our C++ class from JS
 const voyager = new Ship("Voyager", 10);
+globalThis.voyager = voyager;
 
 console.log(`Ship Name: ${voyager.getName()}`);
 console.log("Current Fuel:", voyager.fuel);
