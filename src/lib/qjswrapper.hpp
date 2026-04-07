@@ -57,6 +57,17 @@ namespace qjs {
         }
     };
 
+    template<>
+    struct converter<const char*> {
+        static const char* get(JSContext* ctx, JSValueConst v) {
+            return JS_ToCString(ctx, v);
+        }
+
+        static JSValue put(JSContext* ctx, const char* val) {
+            return JS_NewString(ctx, val);
+        }
+    };
+
     struct detail {
         static JSValue NewPtr(void* ptr) {
             return JS_NewInt64(nullptr, reinterpret_cast<int64_t>(ptr));
@@ -79,15 +90,38 @@ namespace qjs {
         struct function_traits<ReturnType(ClassType::*)(Args...)> {
             using type = std::function<ReturnType(Args...)>;
         };
+
+        template <typename T>
+        struct ArgumentHolder {
+            T value;
+            JSContext* ctx = nullptr;
+            JSValueConst original_v = JS_UNDEFINED;
+
+            ArgumentHolder(JSContext* c, JSValueConst v) : ctx(c), original_v(v) {
+                value = converter<T>::get(ctx, v);
+            }
+
+            ~ArgumentHolder() {
+                if constexpr (std::is_same_v<T, const char*>) {
+                    JS_FreeCString(ctx, value);
+                }
+            }
+
+            operator T() const { return value; }
+        };
     };
 
     template <typename R, typename... Args, size_t... I>
     static JSValue invoke_free_helper(JSContext* ctx, std::function<R(Args...)>& f, JSValueConst* argv, std::index_sequence<I...>) {
+        auto holders = std::tuple<detail::ArgumentHolder<std::decay_t<Args>>...>{
+            {ctx, argv[I]}...
+        };
+
         if constexpr (std::is_void_v<R>) {
-            f(converter<std::decay_t<Args>>::get(ctx, argv[I])...);
+            f(std::get<I>(holders)...);
             return JS_UNDEFINED;
         } else {
-            return converter<R>::put(ctx, f(converter<std::decay_t<Args>>::get(ctx, argv[I])...));
+            return converter<R>::put(ctx, f(std::get<I>(holders)...));
         }
     }
 
