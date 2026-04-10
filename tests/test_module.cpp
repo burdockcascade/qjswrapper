@@ -50,7 +50,7 @@ TEST_CASE("Engine Module Support", "[engine][module]") {
     )";
 
     // Run the module! (This triggers the pending jobs loop we added earlier)
-    auto result = engine.eval_module(js_code, "test_module.js");
+    auto result = engine.eval(js_code, "test_module.js", qjs::EvalMode::Module);
 
     // Ensure the script compiled and ran without throwing JS exceptions
     REQUIRE(result.has_value());

@@ -36,7 +36,7 @@ TEST_CASE("Class Builder bindings", "[class]") {
         .static_constant("VERSION", 1);
 
     SECTION("Constructor and Instance Methods") {
-        auto result = engine.eval_global(R"(
+        auto result = engine.eval(R"(
             const a = new DummyActor("Hero", 50);
             a.takeDamage(10);
             a.getHp() === 40 && a.getName() === "Hero";
@@ -47,7 +47,7 @@ TEST_CASE("Class Builder bindings", "[class]") {
     }
 
     SECTION("Static Methods") {
-        auto result = engine.eval_global(R"(
+        auto result = engine.eval(R"(
             DummyActor.getType() === "Actor";
         )", "test_static_methods.js");
 
@@ -56,7 +56,7 @@ TEST_CASE("Class Builder bindings", "[class]") {
     }
 
     SECTION("Prototype Variables (Mutable defaults)") {
-        auto result = engine.eval_global(R"(
+        auto result = engine.eval(R"(
             const a1 = new DummyActor("A", 10);
             const a2 = new DummyActor("B", 10);
 
@@ -74,7 +74,7 @@ TEST_CASE("Class Builder bindings", "[class]") {
     }
 
     SECTION("Prototype Constants (Read-only)") {
-        auto result = engine.eval_global(R"(
+        auto result = engine.eval(R"(
             const a = new DummyActor("A", 10);
             let check1 = (a.MAX_LEVEL === 100);
 
@@ -90,7 +90,7 @@ TEST_CASE("Class Builder bindings", "[class]") {
     }
 
     SECTION("Static Variables (Mutable)") {
-        auto result = engine.eval_global(R"(
+        auto result = engine.eval(R"(
             let check1 = (DummyActor.globalCount === 0);
 
             DummyActor.globalCount = 5;
@@ -104,7 +104,7 @@ TEST_CASE("Class Builder bindings", "[class]") {
     }
 
     SECTION("Static Constants (Read-only)") {
-        auto result = engine.eval_global(R"(
+        auto result = engine.eval(R"(
             let check1 = (DummyActor.VERSION === 1);
 
             // Attempting to overwrite a static constant should fail

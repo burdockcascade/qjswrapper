@@ -23,12 +23,12 @@ TEST_CASE("Object Data Management", "[object][data]") {
         CHECK(global.get<std::string>("a_string") == "Hello QuickJS");
 
         // Verify JS eval extraction
-        CHECK(engine.eval_global("a_bool", "test.js").value() == "true");
-        CHECK(engine.eval_global("a_int", "test.js").value() == "123");
+        CHECK(engine.eval("a_bool", "test.js").value() == "true");
+        CHECK(engine.eval("a_int", "test.js").value() == "123");
     }
 
     SECTION("Type Coercion and Converters") {
-        auto _ = engine.eval_global("var test_float = 99.9;", "test.js");
+        auto _ = engine.eval("var test_float = 99.9;", "test.js");
         // Verify converter handles float-to-int truncation
         CHECK(global.get<int>("test_float") == 99);
     }
@@ -38,7 +38,7 @@ TEST_CASE("Object Data Management", "[object][data]") {
         auto outer = engine.make_object().set("inner", inner);
         global.set("outer", outer);
 
-        auto result = engine.eval_global("outer.inner.secret", "test.js");
+        auto result = engine.eval("outer.inner.secret", "test.js");
         REQUIRE(result.has_value());
         CHECK(result.value() == "777");
     }
@@ -55,15 +55,15 @@ TEST_CASE("Function and Lambda Binding", "[object][function]") {
 
         engine.global().set("math", math);
 
-        CHECK(engine.eval_global("math.multiply(2.5, 4)", "test.js").value() == "10");
-        CHECK(engine.eval_global("math.greet()", "test.js").value() == "Hello");
+        CHECK(engine.eval("math.multiply(2.5, 4)", "test.js").value() == "10");
+        CHECK(engine.eval("math.greet()", "test.js").value() == "Hello");
     }
 
     SECTION("Capture Semantics and Side Effects") {
         int call_count = 0;
         engine.global().set("tick", [&]() { call_count++; });
 
-        auto _ = engine.eval_global("tick(); tick();", "test.js");
+        auto _ = engine.eval("tick(); tick();", "test.js");
         CHECK(call_count == 2);
     }
 
@@ -73,7 +73,7 @@ TEST_CASE("Function and Lambda Binding", "[object][function]") {
 
         engine.global().set("log", logger);
         prefix = "Trace: "; // Verify capture by reference works
-        CHECK(engine.eval_global("log('Msg')", "test.js").value() == "Trace: Msg");
+        CHECK(engine.eval("log('Msg')", "test.js").value() == "Trace: Msg");
     }
 }
 
@@ -113,7 +113,7 @@ TEST_CASE("Error Handling and Stability", "[object][safety]") {
     qjs::Engine engine;
 
     SECTION("JavaScript Syntax and Runtime Errors") {
-        auto result = engine.eval_global("nonExistent()", "test.js");
+        auto result = engine.eval("nonExistent()", "test.js");
         REQUIRE_FALSE(result.has_value());
         CHECK_THAT(result.error(), ContainsSubstring("is not defined"));
     }
@@ -123,7 +123,7 @@ TEST_CASE("Error Handling and Stability", "[object][safety]") {
             throw std::runtime_error("C++ error!");
         });
 
-        auto result = engine.eval_global("thrower()", "test.js");
+        auto result = engine.eval("thrower()", "test.js");
         REQUIRE_FALSE(result.has_value()); // Bridge should convert to JS exception
         CHECK_THAT(result.error(), ContainsSubstring("C++ error!"));
     }

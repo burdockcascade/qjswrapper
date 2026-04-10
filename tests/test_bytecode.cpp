@@ -19,13 +19,13 @@ TEST_CASE("Engine Bytecode Features", "[engine][bytecode]") {
         create_file(test_file, "1 + 2");
 
         // 1. Compile file to bytecode
-        auto compile_res = engine.compile_file_to_bytecode(test_file, false);
+        auto compile_res = engine.compile_file_to_bytecode(test_file, qjs::EvalMode::Script);
         REQUIRE(compile_res.has_value());
         const std::vector<uint8_t>& bytecode = compile_res.value();
         REQUIRE(!bytecode.empty());
 
         // 2. Execute the compiled bytecode
-        auto run_res = engine.run_bytecode(bytecode.data(), bytecode.size());
+        auto run_res = engine.eval_bytecode(bytecode.data(), bytecode.size());
         REQUIRE(run_res.has_value());
         CHECK(run_res.value() == "3");
 
@@ -37,12 +37,12 @@ TEST_CASE("Engine Bytecode Features", "[engine][bytecode]") {
         create_file(mod_file, "export const data = 'bytecode_secret';");
 
         // 1. Compile the file as an ES6 module
-        auto compile_res = engine.compile_file_to_bytecode(mod_file, true);
+        auto compile_res = engine.compile_file_to_bytecode(mod_file, qjs::EvalMode::Module);
         REQUIRE(compile_res.has_value());
         const auto& bytecode = compile_res.value();
 
         // 2. Register this bytecode as a named module
-        engine.register_bytecode_module("SecretModule", bytecode.data(), bytecode.size());
+        engine.register_module_bytecode("SecretModule", bytecode.data(), bytecode.size());
 
         // 3. Import from the bytecode module and assign to a global variable
         std::string importer_js = R"(
@@ -51,8 +51,12 @@ TEST_CASE("Engine Bytecode Features", "[engine][bytecode]") {
         )";
 
         // eval_module spins the event loop until jobs (like module resolution) are done
-        auto result = engine.eval_module(importer_js, "importer.js");
+        auto result = engine.eval(importer_js, "importer.js", qjs::EvalMode::Module);
         REQUIRE(result.has_value());
+
+        if (!result.has_value()) {
+            UNSCOPED_CAPTURE(result);
+        }
 
         // 4. Retrieve the actual string from the global object instead of the Promise return value
         auto final_value = engine.global().get<std::string>("testResult");

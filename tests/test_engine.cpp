@@ -9,7 +9,7 @@ TEST_CASE("Engine Lifecycle and Multi-Runtime Isolation", "[engine]") {
         for (int i = 0; i < 3; ++i) {
             qjs::Engine local_engine;
             local_engine.global().set("func", []() { return 42; });
-            auto res = local_engine.eval_global("func()", "test.js");
+            auto res = local_engine.eval("func()", "test.js");
             REQUIRE(res.has_value());
             CHECK(res.value() == "42");
         } // local_engine goes out of scope here, cleaning up Runtime and Context
