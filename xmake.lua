@@ -4,12 +4,38 @@ set_languages("cxx23")
 add_requires("quickjs-ng 0.13.0")
 add_requires("catch2 3.x")
 
+add_includedirs("include")
+
+task("amalgamate")
+    on_run(function ()
+        -- Use the system python (or the one from your venv)
+        local python = is_host("windows") and ".venv/Scripts/python.exe" or "python3"
+        
+        local entry = "src/qjswrapper.hpp"
+        local output = "include/qjswrapper.hpp"
+        local script = "tools/amalgamate.py"
+
+        print("Running custom amalgamation script...")
+        
+        -- Arguments: script_path, entry_file, output_file, include_directory
+        os.execv(python, {script, entry, output, "src"})
+    end)
+    set_menu {
+        usage = "xmake amalgamate",
+        description = "Generate a single header file for qjswrapper.",
+    }
+
+target("qjswrapper")
+    set_kind("headeronly")
+    add_packages("quickjs-ng")
+    add_files("include/qjswrapper/*.hpp")
+
 target("unit-tests")
     set_kind("binary")
     add_packages("catch2")
     add_packages("quickjs-ng")
     add_files("tests/*.cpp")
-    add_includedirs("src")
+    add_includedirs("include")
 
 target("example_object")
     set_kind("binary")

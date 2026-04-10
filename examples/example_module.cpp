@@ -1,4 +1,4 @@
-#include "../src/qjswrapper.hpp"
+#include "../include/qjswrapper.hpp"
 #include <iostream>
 #include <string>
 

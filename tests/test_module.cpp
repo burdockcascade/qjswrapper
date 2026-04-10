@@ -1,6 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 #include <string>
-#include "../src/qjswrapper.hpp"
+#include "../include/qjswrapper.hpp"
 
 // A simple stateful class to test class exports
 class Counter {

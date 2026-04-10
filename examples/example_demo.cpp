@@ -1,6 +1,6 @@
 #include <iostream>
 #include <string>
-#include "../src/qjswrapper.hpp"
+#include "../include/qjswrapper.hpp"
 
 int main() {
     qjs::Engine engine;
