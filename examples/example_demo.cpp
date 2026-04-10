@@ -14,7 +14,7 @@ int main() {
     engine.global().set("config", config_obj);
 
     // Let's try to overwrite them in JavaScript
-    auto result = engine.eval_global(R"(
+    auto result = engine.eval(R"(
         "use strict"; // Strict mode forces read-only assignments to throw an error
 
         config.theme = "light"; // This works fine
