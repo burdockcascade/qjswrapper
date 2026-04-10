@@ -62,7 +62,7 @@ int main() {
 
     // 6. Execute the Script
     std::cout << "Executing JS script...\n";
-    auto result = engine.eval_global(js_code, "demo.js");
+    auto result = engine.eval(js_code, "demo.js");
 
     // 7. Handle the Evaluation Result
     // Your engine returns std::expected<std::string, std::string>

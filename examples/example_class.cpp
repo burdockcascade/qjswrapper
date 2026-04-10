@@ -58,7 +58,7 @@ int main() {
     }));
 
     std::cout << "--- Running Class Overload Demo ---\n";
-    auto result = engine.eval_global(js_code, "main.js");
+    auto result = engine.eval(js_code, "main.js");
 
     if (!result) {
         std::cerr << "Error: " << result.error() << "\n";
