@@ -11,7 +11,7 @@ QJSWrapper is a modern, lightweight C++23 wrapper around QuickJS-NG. It aims to 
 ## Examples
 To use QJSWrapper, include the main header in your project:
 ```c++
-#include "qjswrapper/src/qjswrapper.hpp"
+#include "qjswrapper.hpp"
 ```
 
 ### Basic Execution and Function Registration
