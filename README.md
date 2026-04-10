@@ -19,7 +19,7 @@ You can register C++ lambdas or functions directly into the global JavaScript sc
 
 ```c++
 #include <iostream>
-#include "qjswrapper/src/qjswrapper.hpp"
+#include "qjswrapper.hpp"
 
 int main() {
     qjs::Engine engine;
@@ -45,27 +45,35 @@ int main() {
 QJSWrapper allows you to create objects and set properties with specific attributes, such as ReadOnly.
 
 ```c++
-qjs::Engine engine;
-auto config = engine.make_object();
+#include "qjswrapper.hpp"
 
-// Set properties
-config.set("theme", "dark")
-      .set("version", "1.0.4", qjs::Prop::ReadOnly); // Read-only property
-
-engine.global().set("config", config);
-
-// JavaScript cannot overwrite read-only properties in "use strict" mode
-engine.eval_global(R"(
-    "use strict";
-    config.theme = "light"; // Works
-    config.version = "2.0.0"; // Throws TypeError
-)", "test.js");
+int main() {
+    qjs::Engine engine;
+    auto config = engine.make_object();
+    
+    // Set properties
+    config.set("theme", "dark")
+          .set("version", "1.0.4", qjs::Prop::ReadOnly); // Read-only property
+    
+    engine.global().set("config", config);
+    
+    // JavaScript cannot overwrite read-only properties in "use strict" mode
+    engine.eval_global(R"(
+        "use strict";
+        config.theme = "light"; // Works
+        config.version = "2.0.0"; // Throws TypeError
+    )", "test.js");
+    
+    return 0;
+}
 ```
 
 ### Binding C++ Classes
 You can expose C++ classes to JavaScript, including constructors, methods, and constants.
 
 ```c++
+#include "qjswrapper.hpp"
+
 class Player {
 public:
     Player(std::string name, int health) : name_(name), health_(health) {}
@@ -77,21 +85,24 @@ private:
     int health_;
 };
 
-// ... inside main ...
-qjs::Engine engine;
-
-auto player_class = engine.define_class<Player>("Player");
-player_class
-    .constructor<std::string, int>() // Default constructor
-    .method("heal", &Player::heal)
-    .method("getHealth", &Player::getHealth);
-
-// Use in JavaScript
-engine.eval_global(R"(
-    const hero = new Player("Arthur", 80);
-    hero.heal(20);
-    console.log(hero.getHealth()); // 100
-)", "game.js");
+int main() {
+    qjs::Engine engine;
+    
+    auto player_class = engine.define_class<Player>("Player");
+    player_class
+        .constructor<std::string, int>() // Default constructor
+        .method("heal", &Player::heal)
+        .method("getHealth", &Player::getHealth);
+    
+    // Use in JavaScript
+    engine.eval_global(R"(
+        const hero = new Player("Arthur", 80);
+        hero.heal(20);
+        console.log(hero.getHealth()); // 100
+    )", "game.js");
+    
+    return 0;
+}
 ```
 
 ### Native Modules
@@ -99,15 +110,23 @@ Define native modules in C++ that can be imported in JavaScript using the import
 qjs::Engine engine;
 
 ```c++
-auto my_module = engine.define_module("math_utils");
-my_module.set("PI", 3.14159);
-my_module.set("square", [](double x) { return x * x; });
+#include "qjswrapper.hpp"
 
-// Use in JavaScript (requires eval_module)
-engine.eval_module(R"(
-import { PI, square } from "math_utils";
-const area = PI * square(5);
-)", "app.js");
+int main() {
+    qjs::Engine engine;
+    
+    auto my_module = engine.define_module("math_utils");
+    my_module.set("PI", 3.14159);
+    my_module.set("square", [](double x) { return x * x; });
+    
+    // Use in JavaScript (requires eval_module)
+    engine.eval_module(R"(
+    import { PI, square } from "math_utils";
+    const area = PI * square(5);
+    )", "app.js");
+    
+    return 0;
+}
 ```
 
 ## Requirements
