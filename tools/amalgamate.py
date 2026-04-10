@@ -63,8 +63,9 @@ def main():
     body_content = process_file(entry_header, include_paths, processed_files, system_includes)
 
     # Build the final file
-    final_output = "/* Amalgamated Header */\n#pragma once\n\n"
-    
+    final_output = "/* Auto Generated */\n"
+    final_output += "/* Amalgamated Header */\n#pragma once\n\n"
+
     # Add sorted system includes at the top
     if system_includes:
         final_output += "// System Includes\n"
