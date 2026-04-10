@@ -25,7 +25,7 @@ int main() {
 
     // 3. Compile the module into bytecode
     // We pass 'true' because this is an ES6 module
-    auto compiled_result = engine.compile_file_to_bytecode(module_filename, true);
+    auto compiled_result = engine.compile_file_to_bytecode(module_filename, qjs::EvalMode::Module);
 
     if (!compiled_result) {
         std::cerr << "Compilation failed: " << compiled_result.error() << "\n";
@@ -37,7 +37,7 @@ int main() {
 
     // 4. Register the bytecode as an embedded module
     // This simulates having the bytecode embedded directly in your C++ executable (e.g., via xxd or qjsc)
-    engine.register_bytecode_module("MathLib", bytecode.data(), bytecode.size());
+    engine.register_module_bytecode("MathLib", bytecode.data(), bytecode.size());
     std::cout << "[Step 3] Registered bytecode into memory under the name 'MathLib'.\n";
 
     // 5. Run a script that imports and uses our embedded bytecode module
@@ -47,7 +47,7 @@ int main() {
         "globalThis.resultAdd = add(10, 5);\n"
         "globalThis.resultMult = multiply(10, 5);\n";
 
-    auto eval_result = engine.eval_module(main_script, "main.js");
+    auto eval_result = engine.eval(main_script, "main.js", qjs::EvalMode::Module);
 
     if (!eval_result) {
         std::cerr << "Execution failed: " << eval_result.error() << "\n";
