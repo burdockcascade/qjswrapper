@@ -72,7 +72,7 @@ int main() {
     )";
 
     // Run the module using eval_module to support 'import' syntax
-    auto result = engine.eval_module(js_code, "main.js");
+    auto result = engine.eval(js_code, "main.js", qjs::EvalMode::Module);
 
     if (!result) {
         std::cerr << "Script error: " << result.error() << std::endl;

@@ -29,7 +29,7 @@ int main() {
     global.set("add", [](int a, int b) { return a + b; });
 
     // Execute JavaScript code
-    auto result = engine.eval_global("add(10, 5)", "main.js");
+    auto result = engine.eval("add(10, 5)", "main.js");
 
     if (result) {
         std::cout << "Result: " << *result << std::endl; // Output: 15
@@ -58,7 +58,7 @@ int main() {
     engine.global().set("config", config);
     
     // JavaScript cannot overwrite read-only properties in "use strict" mode
-    engine.eval_global(R"(
+    engine.eval(R"(
         "use strict";
         config.theme = "light"; // Works
         config.version = "2.0.0"; // Throws TypeError
@@ -95,7 +95,7 @@ int main() {
         .method("getHealth", &Player::getHealth);
     
     // Use in JavaScript
-    engine.eval_global(R"(
+    engine.eval(R"(
         const hero = new Player("Arthur", 80);
         hero.heal(20);
         console.log(hero.getHealth()); // 100
@@ -120,10 +120,10 @@ int main() {
     my_module.set("square", [](double x) { return x * x; });
     
     // Use in JavaScript (requires eval_module)
-    engine.eval_module(R"(
+    engine.eval(R"(
     import { PI, square } from "math_utils";
     const area = PI * square(5);
-    )", "app.js");
+    )", "app.js", qjs::EvalMode::Module);
     
     return 0;
 }
