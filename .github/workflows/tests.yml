@@ -26,8 +26,4 @@ jobs:
           xmake f -y
           xmake -y
       - name: Run Math Tests
-        run: xmake run test_math
-      - name: Run Ship Tests
-        run: xmake run test_ship
-      - name: Run Errors Tests
-        run: xmake run test_errors
+        run: xmake run unit-tests
