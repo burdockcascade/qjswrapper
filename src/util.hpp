@@ -125,53 +125,6 @@ namespace qjs {
         }
     };
 
-    template<typename T, typename R, typename... Args>
-    struct MemberInvoker {
-        using MemberFunc = R(T::*)(Args...);
-
-        static JSValue apply(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv, int magic, JSValue* data) {
-            // 1. Retrieve the C++ instance pointer from the 'this' object
-            // We use the unique ClassID for type T to ensure safety
-            T* instance = static_cast<T*>(JS_GetOpaque(this_val, ClassRegistry<T>::class_id));
-
-            if (!instance) {
-                return JS_ThrowTypeError(ctx, "Method called on incompatible object (expected C++ instance)");
-            }
-
-            // 2. Retrieve the member function pointer from the 'data' array
-            // The function pointer was wrapped in an opaque object by the Class Builder
-            void* raw_func = JS_GetOpaque(data[0], wrapper_class_id);
-            if (!raw_func) {
-                return JS_ThrowTypeError(ctx, "Failed to retrieve C++ member function pointer");
-            }
-
-            auto* method_ptr = static_cast<MemberFunc*>(raw_func);
-
-            // 3. Convert JavaScript arguments to C++ types using your converter
-            auto args = [&]<size_t... Is>(std::index_sequence<Is...>) {
-                return std::make_tuple(converter<std::decay_t<Args>>::get(ctx, (Is < argc ? argv[Is] : JS_UNDEFINED))...);
-            }(std::index_sequence_for<Args...>{});
-
-            // 4. Execute the call and handle the return value
-            try {
-                if constexpr (std::is_void_v<R>) {
-                    std::apply(*method_ptr, instance, std::move(args));
-                    return JS_UNDEFINED;
-                } else {
-                    R result = std::apply(*method_ptr, instance, std::move(args));
-                    // Return a duplicated value to ensure the C++ wrapper doesn't
-                    // free it prematurely
-                    Value ret = converter<R>::put(ctx, result);
-                    return JS_DupValue(ctx, ret.get());
-                }
-            } catch (const std::exception& e) {
-                return JS_ThrowInternalError(ctx, "%s", e.what());
-            } catch (...) {
-                return JS_ThrowInternalError(ctx, "Unknown C++ exception in member function");
-            }
-        }
-    };
-
     // 3. Strongly-typed wrapper holding member function pointers
     template<typename MemFunc>
     struct MemberCallableWrapper : CallableBase {
