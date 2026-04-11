@@ -28,7 +28,7 @@ task("amalgamate")
 
 target("qjswrapper")
     set_kind("headeronly")
-    add_headerfiles("src/*.hpp")
+    add_headerfiles("include/qjswrapper.hpp")
 
 target("unit-tests")
     set_kind("binary")
