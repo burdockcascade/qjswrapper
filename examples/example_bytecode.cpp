@@ -1,7 +1,7 @@
 #include <iostream>
 #include <fstream>
 #include <vector>
-#include "../include/qjswrapper.hpp"
+#include "../src/qjswrapper.hpp"
 
 // A quick helper function to create a dummy JS file for our compiler to read
 void create_temp_file(const std::string& filename, const std::string& content) {

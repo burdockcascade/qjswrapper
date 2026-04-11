@@ -1,6 +1,6 @@
 #include <iostream>
 #include <string>
-#include "../include/qjswrapper.hpp"
+#include "../src/qjswrapper.hpp"
 
 class Player {
 public:

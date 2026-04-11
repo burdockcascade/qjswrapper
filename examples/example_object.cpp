@@ -1,6 +1,6 @@
 #include <iostream>
 #include <string>
-#include "../include/qjswrapper.hpp"
+#include "../src/qjswrapper.hpp"
 
 int main() {
     std::cout << "--- QuickJS C++ Wrapper Demo ---\n\n";
