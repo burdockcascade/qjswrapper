@@ -6,11 +6,22 @@ concurrency:
 on: [push, pull_request]
 
 jobs:
+  check-single-header:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Setup xmake
+        uses: xmake-io/github-action-setup-xmake@v1
+      - name: Regenerate Header
+        run: xmake amalgamate
+      - name: Check for Changes
+        run: git diff --exit-code include/qjswrapper.hpp
   test:
     strategy:
       matrix:
         os: [windows-latest, ubuntu-latest, macos-latest]
     runs-on: ${{matrix.os}}
+    needs: check-single-header
     steps:
       - uses: actions/checkout@v6
       - name: Setup xmake
@@ -19,9 +30,7 @@ jobs:
           xmake-version: latest
           package-cache: true
           actions-cache-key: ${{ runner.os }}-xmake-${{ hashFiles('xmake.lua') }}
-      - name: Regenerate Header
-        run: xmake amalgamate
-      - name: Check for Changes
-        run: git diff --exit-code include/qjswrapper.hpp
+      - name: Build
+        run: xmake -y
       - name: Run Unit Tests
         run: xmake run unit-tests
