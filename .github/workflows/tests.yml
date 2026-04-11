@@ -4,12 +4,7 @@ on: [push, pull_request]
 
 jobs:
   windows-build:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: [windows-latest]
-    runs-on: ${{ matrix.os }}
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v6
       - name: Setup xmake
@@ -23,12 +18,7 @@ jobs:
       - name: Run Unit Tests
         run: xmake run unit-tests
   mac-build:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: [macos-latest]
-    runs-on: ${{ matrix.os }}
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v6
       - name: Setup xmake
@@ -42,12 +32,7 @@ jobs:
       - name: Run Unit Tests
         run: xmake run unit-tests
   linux-build:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: [ubuntu-latest]
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     steps:
       - name: Installation
         run: |
