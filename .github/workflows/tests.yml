@@ -18,7 +18,7 @@ jobs:
           xmake-version: latest
           package-cache: true
           actions-cache-key: ${{ runner.os }}-xmake-${{ hashFiles('xmake.lua') }}
-      - name: Setup GCC 14 manually
+      - name: Setup Linux Environment
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
