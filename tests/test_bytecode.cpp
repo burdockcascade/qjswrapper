@@ -7,7 +7,7 @@ namespace fs = std::filesystem;
 
 TEST_CASE("Engine Bytecode Features", "[engine][bytecode]") {
     qjs::Engine engine;
-    constexpr std::string test_file = "temp_test.js";
+    const std::string test_file = "temp_test.js";
 
     // Helper to create a temporary JS file
     auto create_file = [&](const std::string& path, const std::string& content) {
@@ -33,7 +33,7 @@ TEST_CASE("Engine Bytecode Features", "[engine][bytecode]") {
     }
 
     SECTION("Bytecode Module Registration and Importing") {
-        constexpr std::string mod_file = "my_module.js";
+        const std::string mod_file = "my_module.js";
         create_file(mod_file, "export const data = 'bytecode_secret';");
 
         // 1. Compile the file as an ES6 module
