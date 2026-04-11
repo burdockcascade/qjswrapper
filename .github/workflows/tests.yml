@@ -1,4 +1,4 @@
-name: QJSWrapper Tests
+name: Unit Tests
 concurrency:
   group: Unit Tests
   cancel-in-progress: false
@@ -6,7 +6,7 @@ concurrency:
 on: [push, pull_request]
 
 jobs:
-  windows-build:
+  test:
     strategy:
       matrix:
         os: [windows-latest, ubuntu-latest, macos-latest]
