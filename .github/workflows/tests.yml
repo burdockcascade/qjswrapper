@@ -3,45 +3,37 @@ name: QJSWrapper Tests
 on: [push, pull_request]
 
 jobs:
-  build:
+  windows-build:
     strategy:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
-            toolchain: clang
-          - os: windows-latest
-            toolchain: clang-cl
-          - os: macos-latest
-            toolchain: clang
-
+          - os: [windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: true
-
+      - uses: actions/checkout@v6
       - name: Setup xmake
         uses: xmake-io/github-action-setup-xmake@v1
         with:
           xmake-version: latest
-
-      - name: Setup Linux Dependencies
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          # Install Clang 18 for C++23 support
-          sudo apt-get install -y clang-18 libc++-18-dev libc++abi-18-dev libgl1-mesa-dev libglu1-mesa-dev
-          
-          # Set Clang 18 as the default clang
-          sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-18 100
-          sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-18 100
-
       - name: Configure and Build
-        run: |
-          # Use the toolchain defined in the matrix
-          xmake f -y --toolchain=${{ matrix.toolchain }}
-          xmake -y
-
+        run: xmake -y
+      - name: Run Math Tests
+        run: xmake run unit-tests
+  mac-build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: [macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v6
+      - name: Setup xmake
+        uses: xmake-io/github-action-setup-xmake@v1
+        with:
+          xmake-version: latest
+      - name: Configure and Build
+        run: xmake -y
       - name: Run Math Tests
         run: xmake run unit-tests
