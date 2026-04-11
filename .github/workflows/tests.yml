@@ -8,7 +8,7 @@ on: [push, pull_request]
 jobs:
   check-single-header:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 1
     steps:
       - uses: actions/checkout@v6
       - name: Regenerate Header
