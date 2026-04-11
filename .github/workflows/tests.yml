@@ -3,8 +3,22 @@ name: QJSWrapper Tests
 on: [push, pull_request]
 
 jobs:
+  check-single-header:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: xmake-io/github-action-setup-xmake@v1
+        with:
+          xmake-version: latest
+          package-cache: true
+          actions-cache-key: ${{ runner.os }}-xmake-${{ hashFiles('xmake.lua') }}
+      - name: Regenerate Header
+        run: xmake amalgamate
+      - name: Check for Changes
+        run: git diff --exit-code include/qjswrapper.hpp
   windows-build:
     runs-on: windows-latest
+    needs: check-single-header
     steps:
       - uses: actions/checkout@v6
       - name: Setup xmake
@@ -15,14 +29,11 @@ jobs:
           actions-cache-key: ${{ runner.os }}-xmake-${{ hashFiles('xmake.lua') }}
       - name: Configure and Build
         run: xmake -y
-      - name: Regenerate Header
-        run: xmake amalgamate
-      - name: Check for Changes
-        run: git diff --exit-code include/qjswrapper.hpp
       - name: Run Unit Tests
         run: xmake run unit-tests
   mac-build:
     runs-on: macos-latest
+    needs: check-single-header
     steps:
       - uses: actions/checkout@v6
       - name: Setup xmake
@@ -33,14 +44,11 @@ jobs:
           actions-cache-key: ${{ runner.os }}-xmake-${{ hashFiles('xmake.lua') }}
       - name: Configure and Build
         run: xmake -y
-      - name: Regenerate Header
-        run: xmake amalgamate
-      - name: Check for Changes
-        run: git diff --exit-code include/qjswrapper.hpp
       - name: Run Unit Tests
         run: xmake run unit-tests
   linux-build:
     runs-on: ubuntu-latest
+    needs: check-single-header
     steps:
       - name: Installation
         run: |
@@ -54,9 +62,5 @@ jobs:
           actions-cache-key: ${{ runner.os }}-xmake-${{ hashFiles('xmake.lua') }}
       - name: Build
         run: xmake f -p linux -a x86_64 --sdk=/usr/bin --cc=gcc-14 --cxx=g++-14 -y && xmake -y
-      - name: Regenerate Header
-        run: xmake amalgamate
-      - name: Check for Changes
-        run: git diff --exit-code include/qjswrapper.hpp
       - name: Run Unit Tests
         run: xmake run unit-tests
