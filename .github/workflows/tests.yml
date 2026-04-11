@@ -8,6 +8,7 @@ on: [push, pull_request]
 jobs:
   check-single-header:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v6
       - name: Setup xmake
@@ -22,6 +23,7 @@ jobs:
         os: [windows-latest, ubuntu-latest, macos-latest]
     runs-on: ${{matrix.os}}
     needs: check-single-header
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v6
       - name: Setup xmake
