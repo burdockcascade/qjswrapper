@@ -1,7 +1,7 @@
 #include <iostream>
 #include <string>
 #include <raylib.h>
-#include "../src/qjswrapper.hpp"
+#include "../include/qjswrapper.hpp"
 
 /**
  * We need to convert between JSON and a Raylib Color Struct

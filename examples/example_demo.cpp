@@ -1,6 +1,6 @@
 #include <iostream>
 #include <string>
-#include "../src/qjswrapper.hpp" // use the unbundled version to keep the IDE happy
+#include "../include/qjswrapper.hpp"
 
 int main() {
     qjs::Engine engine;
