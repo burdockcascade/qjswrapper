@@ -11,10 +11,8 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v6
-      - name: Setup xmake
-        uses: xmake-io/github-action-setup-xmake@v1
       - name: Regenerate Header
-        run: xmake amalgamate
+        run: python tools/amalgamate.py src/qjswrapper.hpp include/qjswrapper.hpp src
       - name: Check for Changes
         run: git diff --exit-code include/qjswrapper.hpp
   test:
