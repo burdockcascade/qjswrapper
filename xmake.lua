@@ -1,9 +1,9 @@
 add_rules("mode.debug", "mode.release")
 set_languages("cxx23")
 
-add_requires("quickjs-ng 0.13.0", {build = true})
-add_requires("catch2 3.x", {build = true})
-add_requires("raylib 5.5", {build = true})
+add_requires("quickjs-ng 0.13.0")
+add_requires("catch2 3.x")
+add_requires("raylib 5.5")
 
 add_includedirs("include")
 

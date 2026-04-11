@@ -16,6 +16,8 @@ jobs:
         uses: xmake-io/github-action-setup-xmake@v1
         with:
           xmake-version: latest
+          package-cache: true
+          actions-cache-key: ${{ runner.os }}-xmake-${{ hashFiles('xmake.lua') }}
       - name: Configure and Build
         run: xmake -y
       - name: Run Unit Tests
@@ -33,7 +35,31 @@ jobs:
         uses: xmake-io/github-action-setup-xmake@v1
         with:
           xmake-version: latest
+          package-cache: true
+          actions-cache-key: ${{ runner.os }}-xmake-${{ hashFiles('xmake.lua') }}
       - name: Configure and Build
         run: xmake -y
+      - name: Run Unit Tests
+        run: xmake run unit-tests
+  linux-build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: [ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Installation
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgl1-mesa-dev libglu1-mesa-dev
+      - uses: actions/checkout@v6
+      - uses: xmake-io/github-action-setup-xmake@v1
+        with:
+          xmake-version: latest
+          package-cache: true
+          actions-cache-key: ${{ runner.os }}-xmake-${{ hashFiles('xmake.lua') }}
+      - name: Build
+        run: xmake f -p linux -a x86_64 --sdk=/usr/bin --cc=gcc-14 --cxx=g++-14 -y && xmake -y
       - name: Run Unit Tests
         run: xmake run unit-tests
