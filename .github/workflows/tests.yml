@@ -30,7 +30,12 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang libc++-dev libc++abi-dev libgl1-mesa-dev libglu1-mesa-dev
+          # Install Clang 18 for C++23 support
+          sudo apt-get install -y clang-18 libc++-18-dev libc++abi-18-dev libgl1-mesa-dev libglu1-mesa-dev
+          
+          # Set Clang 18 as the default clang
+          sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-18 100
+          sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-18 100
 
       - name: Configure and Build
         run: |
