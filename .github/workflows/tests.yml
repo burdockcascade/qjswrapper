@@ -1,4 +1,7 @@
 name: QJSWrapper Tests
+concurrency:
+  group: CI
+  cancel-in-progress: false
 
 on: [push, pull_request]
 
