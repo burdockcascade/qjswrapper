@@ -8,7 +8,6 @@
 #include <functional>
 #include <expected>
 #include <fstream>
-#include <sstream>
 #include <filesystem>
 
 #include <quickjs.h>
