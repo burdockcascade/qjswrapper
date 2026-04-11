@@ -18,7 +18,7 @@ jobs:
           xmake-version: latest
       - name: Configure and Build
         run: xmake -y
-      - name: Run Math Tests
+      - name: Run Unit Tests
         run: xmake run unit-tests
   mac-build:
     strategy:
@@ -35,5 +35,5 @@ jobs:
           xmake-version: latest
       - name: Configure and Build
         run: xmake -y
-      - name: Run Math Tests
+      - name: Run Unit Tests
         run: xmake run unit-tests
