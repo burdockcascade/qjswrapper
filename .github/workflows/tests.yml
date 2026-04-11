@@ -6,28 +6,36 @@ jobs:
   build:
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        include:
+          - os: ubuntu-latest
+            toolchain: clang
+          - os: windows-latest
+            toolchain: clang-cl
+          - os: macos-latest
+            toolchain: clang
+
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
         with:
           submodules: true
+
       - name: Setup xmake
         uses: xmake-io/github-action-setup-xmake@v1
         with:
           xmake-version: latest
-          package-cache: true
-          actions-cache-key: ${{ runner.os }}-xmake-${{ hashFiles('xmake.lua') }}
-      - name: Setup Linux Environment
+
+      - name: Setup Linux Dependencies
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libgl1-mesa-dev libglu1-mesa-dev
-          sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-14 100 --slave /usr/bin/g++ g++ /usr/bin/g++-14
-          sudo update-alternatives --set gcc /usr/bin/gcc-14
+          sudo apt-get install -y clang libc++-dev libc++abi-dev libgl1-mesa-dev libglu1-mesa-dev
+
       - name: Configure and Build
         run: |
-          xmake f -y
+          # Use the toolchain defined in the matrix
+          xmake f -y --toolchain=${{ matrix.toolchain }}
           xmake -y
+
       - name: Run Math Tests
         run: xmake run unit-tests
