@@ -15,18 +15,49 @@ jobs:
         run: python tools/amalgamate.py src/qjswrapper.hpp include/qjswrapper.hpp src
       - name: Check for Changes
         run: git diff --exit-code include/qjswrapper.hpp
-  test:
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [windows-latest, ubuntu-latest, macos-latest]
-    runs-on: ${{matrix.os}}
+  windows:
+    runs-on: windows-latest
+    needs: check-single-header
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+      - name: Setup xmake
+        uses: xmake-io/github-action-setup-xmake@v1
+        with:
+          xmake-version: latest
+          package-cache: true
+          actions-cache-key: ${{ runner.os }}-xmake-${{ hashFiles('xmake.lua') }}
+      - name: Build
+        run: xmake -y
+      - name: Run Unit Tests
+        run: xmake run unit-tests
+  mac:
+    runs-on: macos-latest
+    needs: check-single-header
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install LLVM (macOS only)
+        run: brew install llvm
+      - name: Setup xmake
+        uses: xmake-io/github-action-setup-xmake@v1
+        with:
+          xmake-version: latest
+          package-cache: true
+          actions-cache-key: ${{ runner.os }}-xmake-${{ hashFiles('xmake.lua') }}
+      - name: Configure xmake
+        run: xmake f --toolchain=llvm --sdk=$(brew --prefix llvm) -y
+      - name: Build
+        run: xmake -y
+      - name: Run Unit Tests
+        run: xmake run unit-tests
+  linux:
+    runs-on: ubuntu-latest
     needs: check-single-header
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v6
       - name: Setup Linux Environment
-        if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y libgl1-mesa-dev libglu1-mesa-dev
