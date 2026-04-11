@@ -3,41 +3,37 @@
 #include <raylib.h>
 #include "../src/qjswrapper.hpp"
 
-namespace qjs {
+/**
+ * We need to convert between JSON and a Raylib Color Struct
+ */
+template<>
+struct qjs::converter<Color> {
+    static Color get(JSContext* ctx, JSValueConst v) {
+        uint32_t r, g, b, a;
+        const JSValue r_val = JS_GetPropertyStr(ctx, v, "r");
+        const JSValue g_val = JS_GetPropertyStr(ctx, v, "g");
+        const JSValue b_val = JS_GetPropertyStr(ctx, v, "b");
+        const JSValue a_val = JS_GetPropertyStr(ctx, v, "a");
 
-    /**
-     * We need to convert between JSON and a Raylib Color Struct
-     */
-    template<>
-    struct converter<Color> {
-        static Color get(JSContext* ctx, JSValueConst v) {
-            uint32_t r, g, b, a;
-            const JSValue r_val = JS_GetPropertyStr(ctx, v, "r");
-            const JSValue g_val = JS_GetPropertyStr(ctx, v, "g");
-            const JSValue b_val = JS_GetPropertyStr(ctx, v, "b");
-            const JSValue a_val = JS_GetPropertyStr(ctx, v, "a");
+        JS_ToUint32(ctx, &r, r_val);
+        JS_ToUint32(ctx, &g, g_val);
+        JS_ToUint32(ctx, &b, b_val);
+        JS_ToUint32(ctx, &a, a_val);
 
-            JS_ToUint32(ctx, &r, r_val);
-            JS_ToUint32(ctx, &g, g_val);
-            JS_ToUint32(ctx, &b, b_val);
-            JS_ToUint32(ctx, &a, a_val);
+        JS_FreeValue(ctx, r_val); JS_FreeValue(ctx, g_val);
+        JS_FreeValue(ctx, b_val); JS_FreeValue(ctx, a_val);
 
-            JS_FreeValue(ctx, r_val); JS_FreeValue(ctx, g_val);
-            JS_FreeValue(ctx, b_val); JS_FreeValue(ctx, a_val);
-
-            return Color{static_cast<unsigned char>(r), static_cast<unsigned char>(g), static_cast<unsigned char>(b), static_cast<unsigned char>(a)};
-        }
-        static JSValue put(JSContext* ctx, Color val) {
-            const JSValue obj = JS_NewObject(ctx);
-            JS_SetPropertyStr(ctx, obj, "r", JS_NewInt32(ctx, val.r));
-            JS_SetPropertyStr(ctx, obj, "g", JS_NewInt32(ctx, val.g));
-            JS_SetPropertyStr(ctx, obj, "b", JS_NewInt32(ctx, val.b));
-            JS_SetPropertyStr(ctx, obj, "a", JS_NewInt32(ctx, val.a));
-            return qjs::Value(ctx, obj);
-        }
-    };
-
-}
+        return Color{static_cast<unsigned char>(r), static_cast<unsigned char>(g), static_cast<unsigned char>(b), static_cast<unsigned char>(a)};
+    }
+    static JSValue put(JSContext* ctx, Color val) {
+        const JSValue obj = JS_NewObject(ctx);
+        JS_SetPropertyStr(ctx, obj, "r", JS_NewInt32(ctx, val.r));
+        JS_SetPropertyStr(ctx, obj, "g", JS_NewInt32(ctx, val.g));
+        JS_SetPropertyStr(ctx, obj, "b", JS_NewInt32(ctx, val.b));
+        JS_SetPropertyStr(ctx, obj, "a", JS_NewInt32(ctx, val.a));
+        return qjs::Value(ctx, obj);
+    }
+};
 
 void make_raylib_module(qjs::Engine &engine) {
 
