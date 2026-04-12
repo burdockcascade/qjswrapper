@@ -1,6 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 #include <string>
-#include "../main/qjswrapper.hpp"
+#include "../src/qjswrapper.hpp"
 
 // A dummy C++ class to act as our test subject
 class DummyActor {
