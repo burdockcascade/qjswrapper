@@ -47,7 +47,7 @@ namespace qjs {
         template<typename F>
         requires (callable<F> || std::is_member_function_pointer_v<std::decay_t<F>>)
         Class& method(std::string_view name, F&& func) {
-            prototype_.set(name, std::forward<F>(func));
+            prototype_.set_function(name, std::forward<F>(func));
             return *this;
         }
 
@@ -55,7 +55,7 @@ namespace qjs {
         template<typename F>
         requires callable<F>
         Class& static_method(std::string_view name, F&& func) {
-            constructor_.set(name, std::forward<F>(func));
+            constructor_.set_function(name, std::forward<F>(func));
             return *this;
         }
 
@@ -63,7 +63,7 @@ namespace qjs {
         template<typename V>
         requires (!callable<V> && !std::is_member_function_pointer_v<std::decay_t<V>>)
         Class& variable(std::string_view name, V&& value) {
-            prototype_.set(name, std::forward<V>(value), Prop::Normal);
+            prototype_.set_variable(name, std::forward<V>(value));
             return *this;
         }
 
@@ -71,7 +71,7 @@ namespace qjs {
         template<typename V>
         requires (!callable<V> && !std::is_member_function_pointer_v<std::decay_t<V>>)
         Class& constant(std::string_view name, V&& value) {
-            prototype_.set(name, std::forward<V>(value), Prop::ReadOnly);
+            prototype_.set_constant(name, std::forward<V>(value));
             return *this;
         }
 
@@ -80,7 +80,7 @@ namespace qjs {
         template<typename V>
         requires (!callable<V> && !std::is_member_function_pointer_v<std::decay_t<V>>)
         Class& static_variable(std::string_view name, V&& value) {
-            constructor_.set(name, std::forward<V>(value), Prop::Normal);
+            constructor_.set_variable(name, std::forward<V>(value));
             return *this;
         }
 
@@ -88,7 +88,7 @@ namespace qjs {
         template<typename V>
         requires (!callable<V> && !std::is_member_function_pointer_v<std::decay_t<V>>)
         Class& static_constant(std::string_view name, V&& value) {
-            constructor_.set(name, std::forward<V>(value), Prop::ReadOnly);
+            constructor_.set_constant(name, std::forward<V>(value));
             return *this;
         }
 

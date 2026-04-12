@@ -1,5 +1,6 @@
 #include <iostream>
 #include <string>
+#include <print>
 #include "../include/qjswrapper.hpp"
 
 int main() {
@@ -12,13 +13,13 @@ int main() {
     // 2. Set Global Primitive Variables
     // We can inject configuration or state directly into the JS global object.
     engine.global()
-        .set("APP_NAME", "MathMagic Pro", qjs::Prop::ReadOnly)
-        .set("VERSION", 1.0, qjs::Prop::ReadOnly)
-        .set("DEBUG_MODE", true);
+        .set_constant("APP_NAME", "MathMagic Pro")
+        .set_constant("VERSION", 1.0)
+        .set_variable("DEBUG_MODE", true);
 
     // 3. Bind a C++ Lambda as a Global JS Function
     // This allows JS to call back into our C++ environment (e.g., for logging).
-    engine.global().set("log", [](const std::string& msg) {
+    engine.global().set_function("log", [](const std::string& msg) {
         std::cout << "[JS Log]: " << msg << "\n";
     });
 
@@ -27,19 +28,19 @@ int main() {
     auto math_obj = engine.make_object();
 
     math_obj
-        .set("PI", 3.14159)
-        .set("add", [](double a, double b) {
+        .set_constant("PI", 3.14159)
+        .set_function("add", [](double a, double b) {
             return a + b;
         })
-        .set("subtract", [](double a, double b) {
+        .set_function("subtract", [](double a, double b) {
             return a - b;
         })
-        .set("isEven", [](int n) {
+        .set_function("isEven", [](int n) {
             return n % 2 == 0;
         });
 
     // Mount our constructed object into the JS global scope under a namespace.
-    engine.global().set("MathUtils", math_obj);
+    engine.global().set_constant("MathUtils", math_obj);
 
     // 5. Write the JavaScript code
     // This script will consume the C++ variables, objects, and functions we just bound.
@@ -70,7 +71,8 @@ int main() {
         std::cout << "\n[C++]: Script evaluated successfully.\n";
         std::cout << "[C++]: Eval returned: " << result.value() << "\n";
     } else {
-        std::cerr << "\n[C++ Error]: Script failed: " << result.error() << "\n";
+        const auto& err = result.error();
+        std::println(stderr, "{}", err.to_string());
         return 1;
     }
 

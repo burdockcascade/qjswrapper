@@ -11,10 +11,10 @@ TEST_CASE("Object Data Management", "[object][data]") {
     auto& global = engine.global();
 
     SECTION("Primitive Type Round-tripping") {
-        global.set("a_bool", true)
-              .set("a_int", 123)
-              .set("a_double", 45.67)
-              .set("a_string", "Hello QuickJS");
+        global.set_constant("a_bool", true)
+              .set_constant("a_int", 123)
+              .set_constant("a_double", 45.67)
+              .set_constant("a_string", "Hello QuickJS");
 
         // Verify native extraction
         CHECK(global.get<bool>("a_bool") == true);
@@ -34,9 +34,9 @@ TEST_CASE("Object Data Management", "[object][data]") {
     }
 
     SECTION("Deep Object Nesting") {
-        auto inner = engine.make_object().set("secret", 777);
-        auto outer = engine.make_object().set("inner", inner);
-        global.set("outer", outer);
+        auto inner = engine.make_object().set_constant("secret", 777);
+        auto outer = engine.make_object().set_constant("inner", inner);
+        global.set_constant("outer", outer);
 
         auto result = engine.eval("outer.inner.secret", "test.js");
         REQUIRE(result.has_value());
@@ -50,10 +50,10 @@ TEST_CASE("Function and Lambda Binding", "[object][function]") {
 
     SECTION("Basic Lambda Handling") {
         auto math = engine.make_object();
-        math.set("multiply", [](double a, double b) { return a * b; });
-        math.set("greet", []() { return "Hello"; });
+        math.set_function("multiply", [](double a, double b) { return a * b; });
+        math.set_function("greet", []() { return "Hello"; });
 
-        engine.global().set("math", math);
+        engine.global().set_constant("math", math);
 
         CHECK(engine.eval("math.multiply(2.5, 4)", "test.js").value() == "10");
         CHECK(engine.eval("math.greet()", "test.js").value() == "Hello");
@@ -61,7 +61,7 @@ TEST_CASE("Function and Lambda Binding", "[object][function]") {
 
     SECTION("Capture Semantics and Side Effects") {
         int call_count = 0;
-        engine.global().set("tick", [&]() { call_count++; });
+        engine.global().set_function("tick", [&]() { call_count++; });
 
         auto _ = engine.eval("tick(); tick();", "test.js");
         CHECK(call_count == 2);
@@ -71,7 +71,7 @@ TEST_CASE("Function and Lambda Binding", "[object][function]") {
         std::string prefix = "Log: ";
         std::function<std::string(std::string)> logger = [&](std::string m) { return prefix + m; };
 
-        engine.global().set("log", logger);
+        engine.global().set_function("log", logger);
         prefix = "Trace: "; // Verify capture by reference works
         CHECK(engine.eval("log('Msg')", "test.js").value() == "Trace: Msg");
     }
@@ -82,7 +82,7 @@ TEST_CASE("Native Object Operations", "[object][methods]") {
     qjs::Engine engine;
 
     SECTION("Key Enumeration (keys)") {
-        auto obj = engine.make_object().set("a", 1).set("b", 2);
+        auto obj = engine.make_object().set_constant("a", 1).set_constant("b", 2);
         auto keys = obj.keys();
 
         REQUIRE(keys.size() == 2);
@@ -101,7 +101,7 @@ TEST_CASE("Native Object Operations", "[object][methods]") {
 
     SECTION("Native Invocation (invoke)") {
         auto obj = engine.make_object();
-        obj.set("add", [](int a, int b) { return a + b; });
+        obj.set_function("add", [](int a, int b) { return a + b; });
 
         auto res = obj.invoke("add", 10, 5);
         CHECK(qjs::converter<int>::get(res.ctx(), res.get()) == 15);
@@ -119,7 +119,7 @@ TEST_CASE("Error Handling and Stability", "[object][safety]") {
     }
 
     SECTION("C++ Exception Propagation") {
-        engine.global().set("thrower", []() {
+        engine.global().set_function("thrower", []() {
             throw std::runtime_error("C++ error!");
         });
 
@@ -135,10 +135,10 @@ TEST_CASE("Object Advanced Coverage", "[object][extra]") {
     SECTION("Object-to-Object conversion") {
         auto parent = engine.make_object();
         auto child = engine.make_object();
-        child.set("id", 101);
+        child.set_constant("id", 101);
 
         // Tests the converter<Object> specialization
-        parent.set("child_node", child);
+        parent.set_constant("child_node", child);
 
         auto extracted = parent.get<qjs::Object>("child_node");
         CHECK(extracted.get<int>("id") == 101);
@@ -158,7 +158,7 @@ TEST_CASE("Object Advanced Coverage", "[object][extra]") {
 
     SECTION("as_value() consistency") {
         auto obj = engine.make_object();
-        obj.set("id", 123);
+        obj.set_constant("id", 123);
 
         qjs::Value managed_val = obj.as_value();
 

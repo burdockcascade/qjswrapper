@@ -12,14 +12,14 @@ task("amalgamate")
         -- Use the system python (or the one from your venv)
         local python = is_host("windows") and ".venv/Scripts/python.exe" or "python3"
         
-        local entry = "src/qjswrapper.hpp"
+        local entry = "src/main/qjswrapper.hpp"
         local output = "include/qjswrapper.hpp"
         local script = "tools/amalgamate.py"
 
         print("Running custom amalgamation script...")
         
         -- Arguments: script_path, entry_file, output_file, include_directory
-        os.execv(python, {script, entry, output, "src"})
+        os.execv(python, {script, entry, output, "src/main"})
     end)
     set_menu {
         usage = "xmake amalgamate",

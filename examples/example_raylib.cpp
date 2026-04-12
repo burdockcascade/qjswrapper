@@ -1,6 +1,7 @@
 #include <iostream>
 #include <string>
 #include <raylib.h>
+#include <print>
 #include "../include/qjswrapper.hpp"
 
 /**
@@ -42,17 +43,17 @@ void make_raylib_module(qjs::Engine &engine) {
 
     // Text
     auto text_obj = engine.make_object();
-    text_obj.set("DrawText", ::DrawText);
+    text_obj.set_function("DrawText", ::DrawText);
     raylib_mod.add("Text", text_obj);
 
     // Core
     auto core_obj = engine.make_object();
-    core_obj.set("InitWindow", ::InitWindow);
-    core_obj.set("CloseWindow", ::CloseWindow);
-    core_obj.set("WindowShouldClose", ::WindowShouldClose);
-    core_obj.set("BeginDrawing", ::BeginDrawing);
-    core_obj.set("EndDrawing", ::EndDrawing);
-    core_obj.set("ClearBackground", ::ClearBackground);
+    core_obj.set_function("InitWindow", ::InitWindow);
+    core_obj.set_function("CloseWindow", ::CloseWindow);
+    core_obj.set_function("WindowShouldClose", ::WindowShouldClose);
+    core_obj.set_function("BeginDrawing", ::BeginDrawing);
+    core_obj.set_function("EndDrawing", ::EndDrawing);
+    core_obj.set_function("ClearBackground", ::ClearBackground);
     raylib_mod.add("Core", core_obj);
 
 }
@@ -82,9 +83,10 @@ int main() {
 
     // Execute the script
     if (auto result = engine.eval(script, "raylib.js", qjs::EvalMode::Module)) {
-        std::cout << "Script executed successfully." << std::endl;
+        std::println("Script executed successfully.");
     } else {
-        std::cerr << "Script execution failed: " << result.error() << std::endl;
+        const auto& err = result.error();
+        std::println(stderr, "{}", err.to_string());
     }
 
     return 0;

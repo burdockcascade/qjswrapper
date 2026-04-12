@@ -18,10 +18,10 @@ namespace qjs {
     public:
         explicit Object(Value v) : val_(std::move(v)) {}
 
-        // 1. Unified Set for primitives/values
+        // Unified Set for primitives/values
         template<typename T>
         requires (!callable<T> && !std::is_member_function_pointer_v<std::decay_t<T>>)
-        Object& set(std::string_view prop, T&& value, const Prop mode = Prop::Normal) {
+        Object& set(std::string_view prop, T&& value, const Prop mode) {
             auto ctx = val_.ctx();
             const Value v = converter<std::decay_t<T>>::put(ctx, std::forward<T>(value));
             const int flags = resolve_flags(mode);
@@ -29,16 +29,34 @@ namespace qjs {
             return *this;
         }
 
-        // 2. Unified Set for C++ lambdas and member functions
+        template<typename T>
+        requires (!callable<T> && !std::is_member_function_pointer_v<std::decay_t<T>>)
+        Object& set_variable(std::string_view prop, T&& value) {
+            return set(prop, std::forward<T>(value), Prop::Normal);
+        }
+
+        template<typename T>
+        requires (!callable<T> && !std::is_member_function_pointer_v<std::decay_t<T>>)
+        Object& set_constant(std::string_view prop, T&& value) {
+            return set(prop, std::forward<T>(value), Prop::Locked);
+        }
+
+        // Unified Set for C++ lambdas and member functions
         template<typename F>
         requires (callable<F> || std::is_member_function_pointer_v<std::decay_t<F>>)
-        Object& set(const std::string_view prop, F&& func, const Prop mode = Prop::ReadOnly) {
+        Object& set(const std::string_view prop, F&& func, const Prop mode) {
             const auto ctx = val_.ctx();
             const JSValue js_func = create_js_function(ctx, std::forward<F>(func));
-
             const int flags = resolve_flags(mode);
             JS_DefinePropertyValueStr(ctx, val_.get(), prop.data(), js_func, flags);
             return *this;
+        }
+
+        // Add function to object
+        template<typename F>
+        requires (callable<F> || std::is_member_function_pointer_v<std::decay_t<F>>)
+        Object& set_function(const std::string_view prop, F&& func) {
+            return set(prop, func, Prop::ReadOnly);
         }
 
         // Get

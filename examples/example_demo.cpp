@@ -8,10 +8,10 @@ int main() {
 
     // Set a normal property and a read-only property
     config_obj
-        .set("theme", "dark")
-        .set("version", "1.0.4", qjs::Prop::ReadOnly);
+        .set_constant("theme", "dark")
+        .set_constant("version", "1.0.4");
 
-    engine.global().set("config", config_obj);
+    engine.global().set_constant("config", config_obj);
 
     // Let's try to overwrite them in JavaScript
     auto result = engine.eval(R"(

@@ -1,6 +1,7 @@
 #include <iostream>
 #include <fstream>
 #include <vector>
+#include <print>
 #include "../include/qjswrapper.hpp"
 
 // A quick helper function to create a dummy JS file for our compiler to read
@@ -28,7 +29,8 @@ int main() {
     auto compiled_result = engine.compile_file_to_bytecode(module_filename, qjs::EvalMode::Module);
 
     if (!compiled_result) {
-        std::cerr << "Compilation failed: " << compiled_result.error() << "\n";
+        const auto& err = compiled_result.error();
+        std::println(stderr, "{}", err.to_string());
         return 1;
     }
 
@@ -50,7 +52,8 @@ int main() {
     auto eval_result = engine.eval(main_script, "main.js", qjs::EvalMode::Module);
 
     if (!eval_result) {
-        std::cerr << "Execution failed: " << eval_result.error() << "\n";
+        const auto& err = eval_result.error();
+        std::println(stderr, "{}", err.to_string());
         return 1;
     }
 

@@ -64,7 +64,7 @@ TEST_CASE("Converter System Verification", "[converters]") {
 
     SECTION("Object Wrapping") {
         // Testing the converter<Object> specialization
-        auto obj = engine.make_object().set("id", 101);
+        auto obj = engine.make_object().set_constant("id", 101);
 
         // Pass Object through the converter
         auto val_obj = qjs::converter<qjs::Object>::put(ctx, obj);
@@ -81,7 +81,7 @@ TEST_CASE("Converter System Verification", "[converters]") {
         auto val_vec = qjs::converter<Vec2>::put(ctx, pos);
 
         // Verify in JS context
-        engine.global().set("pos", qjs::converter<Vec2>::get(ctx, val_vec.get()));
+        engine.global().set_constant("pos", qjs::converter<Vec2>::get(ctx, val_vec.get()));
         auto js_check = engine.eval("pos.x === 10.5 && pos.y === -20", "test.js");
         CHECK(js_check.value() == "true");
 

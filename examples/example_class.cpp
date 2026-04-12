@@ -1,5 +1,6 @@
 #include <iostream>
 #include <string>
+#include <print>
 #include "../include/qjswrapper.hpp"
 
 class Player {
@@ -53,7 +54,7 @@ int main() {
         hero1.heal(25);
     )";
 
-    engine.global().set("console", engine.make_object().set("log", [](std::string msg) {
+    engine.global().set_constant("console", engine.make_object().set_function("log", [](std::string msg) {
         std::cout << "[JS] " << msg << "\n";
     }));
 
@@ -61,7 +62,8 @@ int main() {
     auto result = engine.eval(js_code, "main.js");
 
     if (!result) {
-        std::cerr << "Error: " << result.error() << "\n";
+        const auto& err = result.error();
+        std::println(stderr, "{}", err.to_string());
     }
 
     return 0;

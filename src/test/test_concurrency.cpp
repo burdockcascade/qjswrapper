@@ -17,7 +17,7 @@ TEST_CASE("Engine Thread Isolation and Concurrency", "[concurrency]") {
 
             // Register a unique variable for this thread
             std::string var_name = "thread_val_" + std::to_string(thread_id);
-            engine.global().set(var_name, thread_id);
+            engine.global().set_constant(var_name, thread_id);
 
             for (int i = 0; i < iterations_per_thread; ++i) {
                 // Perform a simple calculation

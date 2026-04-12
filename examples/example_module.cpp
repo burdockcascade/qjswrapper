@@ -1,6 +1,7 @@
 #include "../include/qjswrapper.hpp"
 #include <iostream>
 #include <string>
+#include <print>
 
 // 1. A simple C++ class we want to expose
 class Rectangle {
@@ -25,8 +26,8 @@ int main() {
     qjs::Engine engine;
 
     // Optional: Bind a simple console.log so we can see the output of our JS!
-    engine.global().set("console", engine.make_object()
-        .set("log", [](const std::string& msg) {
+    engine.global().set_constant("console", engine.make_object()
+        .set_function("log", [](const std::string& msg) {
             std::cout << "> " << msg << std::endl;
         })
     );
@@ -75,7 +76,8 @@ int main() {
     auto result = engine.eval(js_code, "main.js", qjs::EvalMode::Module);
 
     if (!result) {
-        std::cerr << "Script error: " << result.error() << std::endl;
+        const auto& err = result.error();
+        std::println(stderr, "{}", err.to_string());
     }
 
     return 0;
