@@ -47,7 +47,7 @@ namespace qjs {
             JS_SetHostPromiseRejectionTracker(rt.get(), promise_rejection_tracker, this);
 
             JS_SetModuleLoaderFunc(rt.get(), nullptr, [](JSContext* ctx, const char* module_name, void* opaque) -> JSModuleDef* {
-                Engine* eng = static_cast<Engine*>(opaque);
+                auto* eng = static_cast<Engine*>(opaque);
                 std::string name_str(module_name);
 
                 // 1. Check Native C++ modules
@@ -267,7 +267,7 @@ namespace qjs {
                 def_ptr->exports.emplace_back(std::move(exp_name), std::move(val));
             };
 
-            return Module(ctx.get(), js_module, std::move(add_cb));
+            return {ctx.get(), js_module, std::move(add_cb)};
         }
 
         [[nodiscard]] Object& global() {
@@ -285,7 +285,7 @@ namespace qjs {
         struct ModuleDef {
             std::string name;
             std::vector<std::pair<std::string, Value>> exports;
-            JSModuleDef* js_module;
+            JSModuleDef* js_module{};
         };
         std::vector<std::unique_ptr<ModuleDef>> modules_;
         std::unordered_map<JSModuleDef*, ModuleDef*> module_map_;
@@ -298,7 +298,7 @@ namespace qjs {
         std::unordered_map<std::string, EmbeddedBytecode> bytecode_modules_;
 
         static int module_init_func(JSContext *ctx, JSModuleDef *m) {
-            Engine* eng = static_cast<Engine*>(JS_GetContextOpaque(ctx));
+            auto* eng = static_cast<Engine*>(JS_GetContextOpaque(ctx));
             if (!eng) return -1;
             return eng->init_module_internal(m);
         }
@@ -316,7 +316,7 @@ namespace qjs {
         mutable JSValue last_promise_rejection_ = JS_UNDEFINED;
 
         static void promise_rejection_tracker(JSContext *ctx, JSValueConst /*promise*/, JSValueConst reason, bool is_handled, void *opaque) {
-            Engine* eng = static_cast<Engine*>(opaque);
+            const auto* eng = static_cast<Engine*>(opaque);
             if (!is_handled) {
                 if (!JS_IsUndefined(eng->last_promise_rejection_)) {
                     JS_FreeValue(ctx, eng->last_promise_rejection_);
