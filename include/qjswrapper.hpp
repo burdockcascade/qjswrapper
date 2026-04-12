@@ -148,16 +148,13 @@ namespace qjs {
     struct function_traits<R(*)(Args...)> {
         using return_type = R;
         using args_tuple = std::tuple<Args...>;
-        using function_type = R(Args...); // <--- Add this
         static constexpr size_t arity = sizeof...(Args);
     };
 
-    // Do the same for the member function pointer specializations:
     template<typename C, typename R, typename... Args>
     struct function_traits<R(C::*)(Args...) const> {
         using return_type = R;
         using args_tuple = std::tuple<Args...>;
-        using function_type = R(Args...); // <--- Add this
         static constexpr size_t arity = sizeof...(Args);
     };
 
@@ -165,17 +162,12 @@ namespace qjs {
     struct function_traits<R(C::*)(Args...)> {
         using return_type = R;
         using args_tuple = std::tuple<Args...>;
-        using function_type = R(Args...); // Added
         static constexpr size_t arity = sizeof...(Args);
     };
 
-
     // --- Concepts ---
     template<typename T>
-    concept is_class_type = std::is_class_v<std::remove_cvref_t<T>>;
-
-    template<typename T>
-    concept callable = (is_class_type<T> && requires(T t) {
+    concept callable = (std::is_class_v<std::remove_cvref_t<T>> && requires {
         &std::remove_cvref_t<T>::operator();
     }) || std::is_function_v<std::remove_pointer_t<std::remove_cvref_t<T>>>;
 
@@ -183,30 +175,28 @@ namespace qjs {
         virtual ~CallableBase() = default;
     };
 
-    // 2. Strongly-typed wrapper holding the specific std::function
-    template<typename FuncType>
+    // Strongly-typed wrapper holding the exact functor (avoids std::function overhead)
+    template<typename F>
     struct CallableWrapper : CallableBase {
-        std::function<FuncType> func;
-        explicit CallableWrapper(std::function<FuncType> f) : func(std::move(f)) {}
+        F func;
+        explicit CallableWrapper(F f) : func(std::move(f)) {}
     };
 
     // --- Bridge Components ---
-    // Defined as inline to prevent multiple definition errors across translation units
     inline JSClassID wrapper_class_id = 0;
 
-    template<typename R, typename ArgsTuple>
+    template<typename F, typename R, typename ArgsTuple>
     struct Invoker;
 
-    template<typename R, typename... Args>
-    struct Invoker<R, std::tuple<Args...>> {
-        static JSValue apply(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv, int magic, JSValue* data) {
+    template<typename F, typename R, typename... Args>
+    struct Invoker<F, R, std::tuple<Args...>> {
+        static JSValue apply(JSContext* ctx, JSValueConst /*this_val*/, int argc, JSValueConst* argv, int /*magic*/, JSValue* data) {
             void* p = JS_GetOpaque(data[0], wrapper_class_id);
             if (!p) {
                 return JS_ThrowTypeError(ctx, "Failed to retrieve C++ lambda closure");
             }
 
-            // 3. Cast the opaque pointer back to our specific wrapper type
-            auto* wrapper = static_cast<CallableWrapper<R(Args...)>*>(p);
+            auto* wrapper = static_cast<CallableWrapper<F>*>(p);
             auto& func = wrapper->func;
 
             auto args = [&]<size_t... Is>(std::index_sequence<Is...>) {
@@ -218,8 +208,7 @@ namespace qjs {
                     std::apply(func, std::move(args));
                     return JS_UNDEFINED;
                 } else {
-                    R result = std::apply(func, std::move(args));
-                    Value ret = converter<R>::put(ctx, result);
+                    Value ret = converter<R>::put(ctx, std::apply(func, std::move(args)));
                     return JS_DupValue(ctx, ret.get());
                 }
             } catch (const std::exception& e) {
@@ -242,11 +231,10 @@ namespace qjs {
                 name = class_name;
             }
 
-            // Check if class is registered for this runtime
             if (!JS_IsRegisteredClass(rt, class_id)) {
                 JSClassDef def{
                     .class_name = name.c_str(),
-                    .finalizer = [](JSRuntime* rt, JSValue val) {
+                    .finalizer = [](JSRuntime* /*rt*/, JSValue val) {
                         auto* obj = static_cast<T*>(JS_GetOpaque(val, class_id));
                         delete obj; // JS GC calls C++ destructor
                     }
@@ -256,14 +244,12 @@ namespace qjs {
         }
     };
 
-    // 3. Strongly-typed wrapper holding member function pointers
     template<typename MemFunc>
     struct MemberCallableWrapper : CallableBase {
         MemFunc func;
         explicit MemberCallableWrapper(MemFunc f) : func(f) {}
     };
 
-    // Helper to safely initialize the Lambda storage class across all function types
     inline void init_wrapper_class(JSContext* ctx) {
         auto rt = JS_GetRuntime(ctx);
         if (wrapper_class_id == 0) {
@@ -272,7 +258,7 @@ namespace qjs {
         if (!JS_IsRegisteredClass(rt, wrapper_class_id)) {
             JSClassDef def{
                 .class_name = "CppLambda",
-                .finalizer = [](JSRuntime* rt, JSValue val) {
+                .finalizer = [](JSRuntime* /*rt*/, JSValue val) {
                     auto* base = static_cast<CallableBase*>(JS_GetOpaque(val, wrapper_class_id));
                     delete base;
                 }
@@ -283,7 +269,7 @@ namespace qjs {
 
     template<typename MethodType, typename C, typename R, typename... Args>
     struct MemberInvokerImpl {
-        static JSValue apply(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv, int magic, JSValue* data) {
+        static JSValue apply(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv, int /*magic*/, JSValue* data) {
             C* instance = static_cast<C*>(JS_GetOpaque(this_val, ClassRegistry<C>::class_id));
             if (!instance) return JS_ThrowTypeError(ctx, "Method called on incompatible object");
 
@@ -298,17 +284,15 @@ namespace qjs {
             }(std::index_sequence_for<Args...>{});
 
             try {
-                // Apply the extracted arguments via a small lambda to pair them with the instance pointer
+                auto caller = [instance, method_ptr](auto&&... unpacked) {
+                    return (instance->*method_ptr)(std::forward<decltype(unpacked)>(unpacked)...);
+                };
+
                 if constexpr (std::is_void_v<R>) {
-                    std::apply([instance, method_ptr](auto&&... unpacked) {
-                        (instance->*method_ptr)(std::forward<decltype(unpacked)>(unpacked)...);
-                    }, std::move(args));
+                    std::apply(caller, std::move(args));
                     return JS_UNDEFINED;
                 } else {
-                    R result = std::apply([instance, method_ptr](auto&&... unpacked) {
-                        return (instance->*method_ptr)(std::forward<decltype(unpacked)>(unpacked)...);
-                    }, std::move(args));
-                    Value ret = converter<R>::put(ctx, result);
+                    Value ret = converter<R>::put(ctx, std::apply(caller, std::move(args)));
                     return JS_DupValue(ctx, ret.get());
                 }
             } catch (const std::exception& e) {
@@ -319,23 +303,22 @@ namespace qjs {
         }
     };
 
-    // Replace the existing create_js_function with this setup supporting standard lambdas...
     template<typename F>
     requires callable<F>
     JSValue create_js_function(JSContext* ctx, F&& func) {
         using traits = function_traits<std::decay_t<F>>;
         using R = typename traits::return_type;
         using ArgsTuple = typename traits::args_tuple;
-        using FuncType = typename traits::function_type;
+        using DecayF = std::decay_t<F>; // Deduce the raw functor
 
         init_wrapper_class(ctx);
 
         JSValue opaque_obj = JS_NewObjectClass(ctx, wrapper_class_id);
-        auto* func_ptr = new CallableWrapper<FuncType>(std::forward<F>(func));
+        auto* func_ptr = new CallableWrapper<DecayF>(std::forward<F>(func));
         JS_SetOpaque(opaque_obj, func_ptr);
 
         JSValue js_func = JS_NewCFunctionData(ctx,
-            &Invoker<R, ArgsTuple>::apply,
+            &Invoker<DecayF, R, ArgsTuple>::apply,
             static_cast<int>(traits::arity), 0, 1, &opaque_obj
         );
 
@@ -343,7 +326,6 @@ namespace qjs {
         return js_func;
     }
 
-    // ...and add these two new overloads to support const and non-const class member functions!
     template<typename C, typename R, typename... Args>
     JSValue create_js_function(JSContext* ctx, R (C::*method)(Args...)) {
         init_wrapper_class(ctx);
@@ -392,13 +374,12 @@ namespace qjs {
         };
         std::vector<Overload> overloads;
 
-        static JSValue apply(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv, int magic, JSValue* data) {
+        static JSValue apply(JSContext* ctx, JSValueConst /*this_val*/, int argc, JSValueConst* argv, int /*magic*/, JSValue* data) {
             void* p = JS_GetOpaque(data[0], wrapper_class_id);
             if (!p) return JS_ThrowTypeError(ctx, "Failed to retrieve constructor dispatcher");
 
             auto* dispatcher = static_cast<ConstructorDispatcher<T>*>(p);
 
-            // Iterate through registered overloads to find one matching the argument count
             for (const auto& overload : dispatcher->overloads) {
                 if (static_cast<size_t>(argc) == overload.arity) {
                     try {
