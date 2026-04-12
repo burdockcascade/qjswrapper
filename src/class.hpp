@@ -1,8 +1,6 @@
 #pragma once
 
 #include <string>
-#include <vector>
-#include <functional>
 #include <type_traits>
 
 #include "object.hpp"
@@ -13,11 +11,9 @@ namespace qjs {
     template<typename T>
     class Class {
     public:
-        // Takes ownership of the JS Constructor function, JS Prototype object, and dispatcher
         Class(Object constructor, Object prototype, ConstructorDispatcher<T>* dispatcher)
             : constructor_(std::move(constructor)), prototype_(std::move(prototype)), dispatcher_(dispatcher) {}
 
-        // Standard constructor registration
         template<typename... Args>
         Class& constructor() {
             auto factory = [](JSContext* ctx, int argc, JSValueConst* argv) -> T* {
@@ -34,7 +30,6 @@ namespace qjs {
             return *this;
         }
 
-        // Custom constructor registration (Factory lambda)
         template<typename F>
         requires callable<F>
         Class& constructor(F&& func) {
@@ -43,7 +38,6 @@ namespace qjs {
             return *this;
         }
 
-        // method: Binds an instance method to the prototype
         template<typename F>
         requires (callable<F> || std::is_member_function_pointer_v<std::decay_t<F>>)
         Class& method(std::string_view name, F&& func) {
@@ -51,7 +45,6 @@ namespace qjs {
             return *this;
         }
 
-        // static_method: Binds a static method to the constructor
         template<typename F>
         requires callable<F>
         Class& static_method(std::string_view name, F&& func) {
@@ -59,7 +52,6 @@ namespace qjs {
             return *this;
         }
 
-        // variable: Binds a mutable default value to the prototype
         template<typename V>
         requires (!callable<V> && !std::is_member_function_pointer_v<std::decay_t<V>>)
         Class& variable(std::string_view name, V&& value) {
@@ -67,7 +59,6 @@ namespace qjs {
             return *this;
         }
 
-        // constant: Binds a read-only value to the prototype
         template<typename V>
         requires (!callable<V> && !std::is_member_function_pointer_v<std::decay_t<V>>)
         Class& constant(std::string_view name, V&& value) {
@@ -75,8 +66,6 @@ namespace qjs {
             return *this;
         }
 
-        // static_variable: Binds a mutable static value to the constructor
-        // (Added to maintain symmetry with static_constant!)
         template<typename V>
         requires (!callable<V> && !std::is_member_function_pointer_v<std::decay_t<V>>)
         Class& static_variable(std::string_view name, V&& value) {
@@ -84,7 +73,6 @@ namespace qjs {
             return *this;
         }
 
-        // static_constant: Binds a read-only static value to the constructor
         template<typename V>
         requires (!callable<V> && !std::is_member_function_pointer_v<std::decay_t<V>>)
         Class& static_constant(std::string_view name, V&& value) {
@@ -92,7 +80,6 @@ namespace qjs {
             return *this;
         }
 
-        // Expose the constructor so it can be added to modules or objects directly
         [[nodiscard]] const Object& get_constructor() const {
             return constructor_;
         }
@@ -102,7 +89,6 @@ namespace qjs {
         Object prototype_;
         ConstructorDispatcher<T>* dispatcher_;
 
-        // Helper to deduce the argument types and wire up a custom lambda
         template<typename F, typename... Args>
         void register_custom_factory(F func, std::tuple<Args...>) {
             using traits = function_traits<std::decay_t<F>>;
@@ -114,7 +100,6 @@ namespace qjs {
                     return std::make_tuple(converter<std::decay_t<Args>>::get(ctx, (Is < argc ? argv[Is] : JS_UNDEFINED))...);
                 }(std::index_sequence_for<Args...>{});
 
-                // If the lambda returns a T*, just use it. If it returns T by value, wrap it in 'new'
                 if constexpr (std::is_pointer_v<Ret> && std::is_same_v<std::remove_pointer_t<Ret>, T>) {
                     return std::apply(f, std::move(args));
                 } else if constexpr (std::is_same_v<Ret, T>) {
@@ -130,4 +115,4 @@ namespace qjs {
         }
     };
 
-}
+} // namespace qjs
