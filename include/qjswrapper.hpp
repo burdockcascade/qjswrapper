@@ -811,6 +811,13 @@ namespace qjs {
             }
         }
 
+        // --- Memory Management APIs ---
+
+        // Triggers the QuickJS cycle collector to clean up unreferenced memory islands
+        void run_gc() const {
+            JS_RunGC(rt.get());
+        }
+
         // --- Execution APIs ---
 
         std::expected<std::string, EngineError> eval(std::string_view code, std::string_view filename = "<eval>", const EvalMode mode = EvalMode::Script) const {
