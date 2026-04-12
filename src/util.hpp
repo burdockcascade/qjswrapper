@@ -176,8 +176,8 @@ namespace qjs {
     requires callable<F>
     JSValue create_js_function(JSContext* ctx, F&& func) {
         using traits = function_traits<std::decay_t<F>>;
-        using R = typename traits::return_type;
-        using ArgsTuple = typename traits::args_tuple;
+        using R = traits::return_type;
+        using ArgsTuple = traits::args_tuple;
         using DecayF = std::decay_t<F>; // Deduce the raw functor
 
         init_wrapper_class(ctx);

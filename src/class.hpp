@@ -92,7 +92,7 @@ namespace qjs {
         template<typename F, typename... Args>
         void register_custom_factory(F func, std::tuple<Args...>) {
             using traits = function_traits<std::decay_t<F>>;
-            using Ret = typename traits::return_type;
+            using Ret = traits::return_type;
             constexpr size_t arity = traits::arity;
 
             auto factory = [f = std::move(func)](JSContext* ctx, int argc, JSValueConst* argv) -> T* {
