@@ -21,7 +21,7 @@ namespace qjs {
         // 1. Unified Set for primitives/values
         template<typename T>
         requires (!callable<T> && !std::is_member_function_pointer_v<std::decay_t<T>>)
-        Object& set(std::string_view prop, T&& value, Prop mode = Prop::Normal) {
+        Object& set(std::string_view prop, T&& value, const Prop mode = Prop::Normal) {
             auto ctx = val_.ctx();
             const Value v = converter<std::decay_t<T>>::put(ctx, std::forward<T>(value));
             const int flags = resolve_flags(mode);
@@ -32,7 +32,7 @@ namespace qjs {
         // 2. Unified Set for C++ lambdas and member functions
         template<typename F>
         requires (callable<F> || std::is_member_function_pointer_v<std::decay_t<F>>)
-        Object& set(std::string_view prop, F&& func, Prop mode = Prop::ReadOnly) {
+        Object& set(const std::string_view prop, F&& func, const Prop mode = Prop::ReadOnly) {
             const auto ctx = val_.ctx();
             const JSValue js_func = create_js_function(ctx, std::forward<F>(func));
 
@@ -51,7 +51,7 @@ namespace qjs {
             return result;
         }
 
-        [[nodiscard]] bool remove(std::string_view prop) const {
+        [[nodiscard]] bool remove(const std::string_view prop) const {
             const auto ctx = val_.ctx();
             const JSAtom atom = JS_NewAtomLen(ctx, prop.data(), prop.size());
 

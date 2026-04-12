@@ -1,5 +1,5 @@
 #include <catch2/catch_test_macros.hpp>
-#include "../src/qjswrapper.hpp"
+#include "../main/qjswrapper.hpp"
 
 // A helper class to track instance lifetimes
 class MemoryTracker {

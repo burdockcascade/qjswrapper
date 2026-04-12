@@ -6,7 +6,7 @@
 #include <type_traits>
 
 #include "object.hpp"
-#include "util.hpp" // Included to access ConstructorDispatcher and function_traits
+#include "util.hpp"
 
 namespace qjs {
 

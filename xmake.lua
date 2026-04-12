@@ -34,7 +34,7 @@ target("unit-tests")
     set_kind("binary")
     add_packages("catch2")
     add_packages("quickjs-ng")
-    add_files("tests/*.cpp")
+    add_files("src/test/*.cpp")
 
 target("example_object")
     set_kind("binary")

@@ -1,5 +1,5 @@
 #include <catch2/catch_test_macros.hpp>
-#include "../src/qjswrapper.hpp"
+#include "../main/qjswrapper.hpp"
 
 // A custom type to test user-extensibility, similar to the Color example
 struct Vec2 {

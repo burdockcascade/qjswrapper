@@ -3,7 +3,7 @@
 #include <vector>
 #include <string>
 #include <atomic>
-#include "../src/qjswrapper.hpp"
+#include "../main/qjswrapper.hpp"
 
 TEST_CASE("Engine Thread Isolation and Concurrency", "[concurrency]") {
     const int num_threads = 8;

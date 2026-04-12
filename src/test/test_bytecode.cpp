@@ -1,7 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <filesystem>
 #include <fstream>
-#include "../src/qjswrapper.hpp"
+#include "../main/qjswrapper.hpp"
 
 namespace fs = std::filesystem;
 
