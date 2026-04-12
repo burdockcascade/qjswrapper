@@ -696,7 +696,6 @@ namespace qjs {
         Module(JSContext* ctx, JSModuleDef* m, std::function<void(std::string, Value)> add_cb)
             : ctx_(ctx), m_(m), add_cb_(std::move(add_cb)) {}
 
-        // 1. Export primitives, variables, and standard Objects
         template<typename T>
         requires (!callable<T> && !std::is_member_function_pointer_v<std::decay_t<T>>)
         Module& add(const std::string& name, T&& value) {
@@ -705,7 +704,6 @@ namespace qjs {
             return *this;
         }
 
-        // 2. Export C++ lambdas and functions
         template<typename F>
         requires (callable<F> || std::is_member_function_pointer_v<std::decay_t<F>>)
         Module& add(const std::string& name, F&& func) {
@@ -715,13 +713,11 @@ namespace qjs {
             return *this;
         }
 
-        // 3a. Export a registered C++ Class (Non-const lvalue)
         template<typename T>
         Module& add(const std::string& name, Class<T>& cls) {
             return add(name, cls.get_constructor());
         }
 
-        // 3b. Export a registered C++ Class (Const lvalue / rvalue)
         template<typename T>
         Module& add(const std::string& name, const Class<T>& cls) {
             return add(name, cls.get_constructor());
