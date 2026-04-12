@@ -18,7 +18,6 @@ namespace qjs {
     public:
         explicit Object(Value v) : val_(std::move(v)) {}
 
-        // Unified Set for primitives/values
         template<typename T>
         requires (!callable<T> && !std::is_member_function_pointer_v<std::decay_t<T>>)
         Object& set(std::string_view prop, T&& value, const Prop mode) {
@@ -41,7 +40,6 @@ namespace qjs {
             return set(prop, std::forward<T>(value), Prop::Locked);
         }
 
-        // Unified Set for C++ lambdas and member functions
         template<typename F>
         requires (callable<F> || std::is_member_function_pointer_v<std::decay_t<F>>)
         Object& set(const std::string_view prop, F&& func, const Prop mode) {
@@ -52,14 +50,12 @@ namespace qjs {
             return *this;
         }
 
-        // Add function to object
         template<typename F>
         requires (callable<F> || std::is_member_function_pointer_v<std::decay_t<F>>)
         Object& set_function(const std::string_view prop, F&& func) {
-            return set(prop, func, Prop::ReadOnly);
+            return set(prop, std::forward<F>(func), Prop::ReadOnly);
         }
 
-        // Get
         template<typename T>
         T get(const std::string_view prop) const {
             auto ctx = val_.ctx();
@@ -72,38 +68,33 @@ namespace qjs {
         [[nodiscard]] bool remove(const std::string_view prop) const {
             const auto ctx = val_.ctx();
             const JSAtom atom = JS_NewAtomLen(ctx, prop.data(), prop.size());
-
-            // JS_DeleteProperty returns 1 if successful, 0 if not (or if non-configurable)
             const int ret = JS_DeleteProperty(ctx, val_.get(), atom, 0);
             JS_FreeAtom(ctx, atom);
-
             return ret == 1;
         }
 
         template<typename... Args>
         Value invoke(const std::string_view prop, Args&&... args) const {
             auto ctx = val_.ctx();
-
-            // 1. Get the function property
             const JSValue func = JS_GetPropertyStr(ctx, val_.get(), prop.data());
+
             if (!JS_IsFunction(ctx, func)) {
                 JS_FreeValue(ctx, func);
-                // Return an exception or undefined depending on your error handling preference
-                return { ctx, JS_ThrowTypeError(ctx, "Property is not a function") };
+                return { ctx, JS_ThrowTypeError(ctx, "Property '%s' is not a function", prop.data()) };
             }
 
-            // 2. Convert C++ arguments to JSValues using your converter
             std::vector<Value> managed_args;
+            managed_args.reserve(sizeof...(Args));
             (managed_args.push_back(converter<std::decay_t<Args>>::put(ctx, std::forward<Args>(args))), ...);
 
             std::vector<JSValue> raw_args;
+            raw_args.reserve(sizeof...(Args));
             for (const auto& arg : managed_args) raw_args.push_back(arg.get());
 
-            // 3. Call the function natively (val_.get() acts as the 'this' context!)
             JSValue result = JS_Call(ctx, func, val_.get(), raw_args.size(), raw_args.data());
-
             JS_FreeValue(ctx, func);
-            return { ctx, result }; // Wrap the result so memory is managed
+
+            return { ctx, result };
         }
 
         [[nodiscard]] std::vector<std::string> keys() const {
@@ -112,16 +103,15 @@ namespace qjs {
             uint32_t plen = 0;
             std::vector<std::string> result;
 
-            // Get only enumerable properties (like Object.keys())
             if (JS_GetOwnPropertyNames(ctx, &ptab, &plen, val_.get(), JS_GPN_STRING_MASK | JS_GPN_ENUM_ONLY) == 0) {
+                result.reserve(plen);
                 for(uint32_t i = 0; i < plen; i++) {
                     if (const char* str = JS_AtomToCString(ctx, ptab[i].atom)) {
                         result.emplace_back(str);
                         JS_FreeCString(ctx, str);
                     }
-                    JS_FreeAtom(ctx, ptab[i].atom); // Free each atom
+                    JS_FreeAtom(ctx, ptab[i].atom);
                 }
-                // QuickJS requires using js_free for the property array itself
                 js_free(ctx, ptab);
             }
             return result;
@@ -150,11 +140,10 @@ namespace qjs {
                 default:                   return JS_PROP_WRITABLE | JS_PROP_ENUMERABLE | JS_PROP_CONFIGURABLE;
             }
         }
-
     };
 
     template<>
-        struct converter<Object> {
+    struct converter<Object> {
         static Value put(JSContext* ctx, const Object& val) {
             return val.as_value();
         }
