@@ -72,7 +72,7 @@ TEST_CASE("Engine Bytecode Features", "[engine][bytecode]") {
         REQUIRE_FALSE(compile_res.has_value());
 
         // Extract error for more flexible checking
-        const std::string& err_msg = compile_res.error();
+        const std::string& err_msg = compile_res.error().message;
 
         // Check for "unexpected token" instead of "expecting expression"
         bool is_syntax_error = err_msg.find("unexpected token") != std::string::npos ||
@@ -86,6 +86,6 @@ TEST_CASE("Engine Bytecode Features", "[engine][bytecode]") {
     SECTION("Error Handling: Missing File") {
         auto compile_res = engine.compile_file_to_bytecode("non_existent.js");
         REQUIRE_FALSE(compile_res.has_value());
-        CHECK(compile_res.error() == "File not found: non_existent.js");
+        CHECK(compile_res.error().message == "File not found: non_existent.js");
     }
 }

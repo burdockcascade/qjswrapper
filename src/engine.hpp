@@ -23,11 +23,28 @@ namespace qjs {
         Module  // Runs as an ES6 module (supports import/export, strict mode by default)
     };
 
+    struct EngineError {
+        std::string message;
+        std::string filename;
+        int line_number = -1;
+        std::string stack;
+
+        [[nodiscard]] std::string to_string() const {
+            std::string out = message;
+            if (!stack.empty()) {
+                out += "\nStack:\n" + stack;
+            }
+            return out;
+        }
+    };
+
     class Engine {
 
     public:
         Engine() : rt(JS_NewRuntime()), ctx(JS_NewContext(rt.get())), global_wrapper(Value(ctx.get(), JS_GetGlobalObject(ctx.get()))) {
             JS_SetContextOpaque(ctx.get(), this);
+
+            JS_SetHostPromiseRejectionTracker(rt.get(), promise_rejection_tracker, this);
 
             // Updated Module Loader: Handles C++, Pre-registered Source, Bytecode, and Files
             JS_SetModuleLoaderFunc(rt.get(), nullptr, [](JSContext* ctx, const char* module_name, void* opaque) -> JSModuleDef* {
@@ -87,12 +104,17 @@ namespace qjs {
             }, this);
         }
 
-        ~Engine() = default;
+        ~Engine() {
+            // --- NEW: Clean up any lingering rejection values ---
+            if (!JS_IsUndefined(last_promise_rejection_)) {
+                JS_FreeValue(ctx.get(), last_promise_rejection_);
+            }
+        }
 
         // --- Execution APIs (Running code immediately) ---
 
         // Evaluates a raw string of JavaScript code
-        std::expected<std::string, std::string> eval(std::string_view code, std::string_view filename = "<eval>", const EvalMode mode = EvalMode::Script) const {
+        std::expected<std::string, EngineError> eval(std::string_view code, std::string_view filename = "<eval>", const EvalMode mode = EvalMode::Script) const {
             int eval_flags = (mode == EvalMode::Module) ? JS_EVAL_TYPE_MODULE : JS_EVAL_TYPE_GLOBAL;
             JSValue ret = JS_Eval(ctx.get(), code.data(), code.size(), filename.data(), eval_flags);
 
@@ -100,15 +122,28 @@ namespace qjs {
         }
 
         // Reads a JS file from disk and evaluates it
-        std::expected<std::string, std::string> eval_file(const std::filesystem::path& p, EvalMode mode = EvalMode::Script) const {
+        std::expected<std::string, EngineError> eval_file(const std::filesystem::path& p, EvalMode mode = EvalMode::Script) const {
             std::ifstream f(p, std::ios::binary | std::ios::ate);
-            if (!f) return std::unexpected("File not found: " + p.string());
+
+            if (!f) {
+                return std::unexpected(EngineError{
+                    .message = "File not found: " + p.string(),
+                    .filename = p.string(),
+                    .line_number = -1, // No line number for FS errors
+                    .stack = ""        // No stack trace available
+                });
+            }
 
             std::streamsize size = f.tellg();
             f.seekg(0, std::ios::beg);
             std::string code(size, '\0');
             if (!f.read(code.data(), size)) {
-                return std::unexpected("Failed to read file: " + p.string());
+                return std::unexpected(EngineError{
+                    .message = "Failed to read file: " + p.string(),
+                    .filename = p.string(),
+                    .line_number = -1, // No line number for FS errors
+                    .stack = ""        // No stack trace available
+                });
             }
 
             return eval(code, p.string(), mode);
@@ -116,7 +151,7 @@ namespace qjs {
 
         // Executes QuickJS bytecode
         // Note: Bytecode inherently knows if it's a Script or Module based on how it was compiled.
-        std::expected<std::string, std::string> eval_bytecode(const uint8_t* bytecode, size_t len) const {
+        std::expected<std::string, EngineError> eval_bytecode(const uint8_t* bytecode, size_t len) const {
             const JSValue obj = JS_ReadObject(ctx.get(), bytecode, len, JS_READ_OBJ_BYTECODE);
             if (JS_IsException(obj)) return wrap_result(obj);
 
@@ -139,15 +174,30 @@ namespace qjs {
         // --- Compilation APIs ---
 
         // Compiles a JavaScript file into QuickJS bytecode
-        std::expected<std::vector<uint8_t>, std::string> compile_file_to_bytecode(const std::filesystem::path& p, EvalMode mode = EvalMode::Module) const {
+        std::expected<std::vector<uint8_t>, EngineError> compile_file_to_bytecode(const std::filesystem::path& p, EvalMode mode = EvalMode::Module) const {
             std::ifstream f(p, std::ios::binary | std::ios::ate);
-            if (!f) return std::unexpected("File not found: " + p.string());
+
+            if (!f) {
+                return std::unexpected(EngineError{
+                    .message = "File not found: " + p.string(),
+                    .filename = p.string(),
+                    .line_number = -1, // No line number for FS errors
+                    .stack = ""        // No stack trace available
+                });
+            }
 
             std::streamsize size = f.tellg();
             f.seekg(0, std::ios::beg);
             std::string code(size, '\0');
             if (!f.read(code.data(), size)) {
-                return std::unexpected("Failed to read file: " + p.string());
+                if (!f) {
+                    return std::unexpected(EngineError{
+                        .message = "Failed to read the file",
+                        .filename = p.string(),
+                        .line_number = -1, // No line number for FS errors
+                        .stack = ""        // No stack trace available
+                    });
+                }
             }
 
             int eval_flags = JS_EVAL_FLAG_COMPILE_ONLY;
@@ -164,7 +214,16 @@ namespace qjs {
             uint8_t* out_buf = JS_WriteObject(ctx.get(), &out_buf_len, func_val, JS_WRITE_OBJ_BYTECODE);
             JS_FreeValue(ctx.get(), func_val);
 
-            if (!out_buf) return std::unexpected("Failed to serialize bytecode");
+            if (!out_buf) {
+                if (!f) {
+                    return std::unexpected(EngineError{
+                        .message = "Failed to serialize the bytecode",
+                        .filename = p.string(),
+                        .line_number = -1, // No line number for FS errors
+                        .stack = ""        // No stack trace available
+                    });
+                }
+            }
 
             std::vector<uint8_t> bytecode(out_buf, out_buf + out_buf_len);
             js_free(ctx.get(), out_buf);
@@ -272,8 +331,27 @@ namespace qjs {
             return 0;
         }
 
-        // Helper to spin the event loop and safely extract results
-        std::expected<std::string, std::string> handle_execution_result(JSValue ret) const {
+        mutable JSValue last_promise_rejection_ = JS_UNDEFINED;
+
+        // Callback invoked by QuickJS when a Promise rejects without a .catch() handler
+        static void promise_rejection_tracker(JSContext *ctx, JSValueConst promise, JSValueConst reason, bool is_handled, void *opaque) {
+            Engine* eng = static_cast<Engine*>(opaque);
+            if (!is_handled) {
+                // A new rejection occurred! Save the reason.
+                if (!JS_IsUndefined(eng->last_promise_rejection_)) {
+                    JS_FreeValue(ctx, eng->last_promise_rejection_);
+                }
+                eng->last_promise_rejection_ = JS_DupValue(ctx, reason);
+            } else {
+                // A previously rejected promise was handled later, clear the error.
+                if (!JS_IsUndefined(eng->last_promise_rejection_)) {
+                    JS_FreeValue(ctx, eng->last_promise_rejection_);
+                    eng->last_promise_rejection_ = JS_UNDEFINED;
+                }
+            }
+        }
+
+        std::expected<std::string, EngineError> handle_execution_result(JSValue ret) const {
             if (JS_IsException(ret)) return wrap_result(ret);
 
             // Spin the Event Loop to handle Promises (Modules always run as promises!)
@@ -284,19 +362,50 @@ namespace qjs {
             if (err < 0) {
                 JSValue exception = JS_GetException(pctx);
                 JS_FreeValue(ctx.get(), ret);
-                return wrap_result(exception);
+
+                // FIX: The event loop failed. Throw the extracted error object
+                // back into the context so wrap_result recognizes it as an exception.
+                JS_Throw(ctx.get(), exception);
+                return wrap_result(JS_EXCEPTION);
             }
 
+            if (!JS_IsUndefined(last_promise_rejection_)) {
+                JSValue rejected = JS_DupValue(ctx.get(), last_promise_rejection_);
+
+                // Reset internal state
+                JS_FreeValue(ctx.get(), last_promise_rejection_);
+                last_promise_rejection_ = JS_UNDEFINED;
+                JS_FreeValue(ctx.get(), ret);
+
+                // FIX: The module's promise rejected. Throw the rejected value
+                // back into the context so wrap_result recognizes it as an exception.
+                JS_Throw(ctx.get(), rejected);
+                return wrap_result(JS_EXCEPTION);
+            }
+
+            // If it succeeds, it returns the stringified success value (usually "[object Promise]")
             return wrap_result(ret);
         }
 
-        std::expected<std::string, std::string> wrap_result(const JSValue v) const {
+        std::expected<std::string, EngineError> wrap_result(const JSValue v) const {
             const Value managed_val(ctx.get(), v);
 
             if (JS_IsException(managed_val.get())) {
-                const JSValue exception = JS_GetException(ctx.get());
-                const Value managed_exc(ctx.get(), exception);
-                return std::unexpected(converter<std::string>::get(ctx.get(), managed_exc.get()));
+                JSValue exception = JS_GetException(ctx.get());
+                EngineError err;
+
+                err.message = converter<std::string>::get(ctx.get(), exception);
+
+                if (JS_IsError(exception)) {
+                    JSValue stack = JS_GetPropertyStr(ctx.get(), exception, "stack");
+                    if (!JS_IsUndefined(stack)) {
+                        err.stack = converter<std::string>::get(ctx.get(), stack);
+                        JS_FreeValue(ctx.get(), stack);
+                    }
+                }
+
+                JS_FreeValue(ctx.get(), exception);
+                return std::unexpected(err);
             }
 
             return converter<std::string>::get(ctx.get(), managed_val.get());

@@ -115,7 +115,7 @@ TEST_CASE("Error Handling and Stability", "[object][safety]") {
     SECTION("JavaScript Syntax and Runtime Errors") {
         auto result = engine.eval("nonExistent()", "test.js");
         REQUIRE_FALSE(result.has_value());
-        CHECK_THAT(result.error(), ContainsSubstring("is not defined"));
+        CHECK_THAT(result.error().message, ContainsSubstring("is not defined"));
     }
 
     SECTION("C++ Exception Propagation") {
@@ -125,7 +125,7 @@ TEST_CASE("Error Handling and Stability", "[object][safety]") {
 
         auto result = engine.eval("thrower()", "test.js");
         REQUIRE_FALSE(result.has_value()); // Bridge should convert to JS exception
-        CHECK_THAT(result.error(), ContainsSubstring("C++ error!"));
+        CHECK_THAT(result.error().message, ContainsSubstring("C++ error!"));
     }
 }
 

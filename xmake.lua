@@ -1,7 +1,7 @@
 add_rules("mode.debug", "mode.release")
 set_languages("cxx23")
 
-add_requires("quickjs-ng 0.13.0")
+add_requires("quickjs-ng 0.14.0")
 add_requires("catch2 3.x")
 add_requires("raylib 5.5")
 
@@ -59,6 +59,16 @@ target("example_class")
 target("example_bytecode")
      set_kind("binary")
      add_files("examples/example_bytecode.cpp")
+     add_packages("quickjs-ng")
+
+target("example_error_global")
+     set_kind("binary")
+     add_files("examples/example_error_global.cpp")
+     add_packages("quickjs-ng")
+
+target("example_error_module")
+     set_kind("binary")
+     add_files("examples/example_error_module.cpp")
      add_packages("quickjs-ng")
 
 target("example_raylib")
