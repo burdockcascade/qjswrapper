@@ -19,7 +19,7 @@ TEST_CASE("Engine Bytecode Features", "[engine][bytecode]") {
         create_file(test_file, "1 + 2");
 
         // 1. Compile file to bytecode
-        auto compile_res = engine.compile_file_to_bytecode(test_file, qjs::EvalMode::Script);
+        auto compile_res = engine.compile_file_to_bytecode(test_file, true, true, qjs::EvalMode::Script);
         REQUIRE(compile_res.has_value());
         const std::vector<uint8_t>& bytecode = compile_res.value();
         REQUIRE(!bytecode.empty());
@@ -37,7 +37,7 @@ TEST_CASE("Engine Bytecode Features", "[engine][bytecode]") {
         create_file(mod_file, "export const data = 'bytecode_secret';");
 
         // 1. Compile the file as an ES6 module
-        auto compile_res = engine.compile_file_to_bytecode(mod_file, qjs::EvalMode::Module);
+        auto compile_res = engine.compile_file_to_bytecode(mod_file, true, true, qjs::EvalMode::Module);
         REQUIRE(compile_res.has_value());
         const auto& bytecode = compile_res.value();
 

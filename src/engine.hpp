@@ -168,7 +168,7 @@ namespace qjs {
 
         // --- Compilation APIs ---
 
-        std::expected<std::vector<uint8_t>, EngineError> compile_file_to_bytecode(const std::filesystem::path& p, EvalMode mode = EvalMode::Module) const {
+        std::expected<std::vector<uint8_t>, EngineError> compile_file_to_bytecode(const std::filesystem::path& p, bool strip_source = false, bool strip_debug = false, EvalMode mode = EvalMode::Module) const {
             std::ifstream f(p, std::ios::binary | std::ios::ate);
 
             if (!f) {
@@ -198,8 +198,13 @@ namespace qjs {
                 return std::unexpected(err.error());
             }
 
+            int write_flags = JS_WRITE_OBJ_BYTECODE;
+
+            if (strip_source) write_flags |= JS_WRITE_OBJ_STRIP_SOURCE;
+            if (strip_debug) write_flags |= JS_WRITE_OBJ_STRIP_DEBUG;
+
             size_t out_buf_len;
-            uint8_t* out_buf = JS_WriteObject(ctx.get(), &out_buf_len, func_val, JS_WRITE_OBJ_BYTECODE);
+            uint8_t* out_buf = JS_WriteObject(ctx.get(), &out_buf_len, func_val, write_flags);
             JS_FreeValue(ctx.get(), func_val);
 
             if (!out_buf) {
