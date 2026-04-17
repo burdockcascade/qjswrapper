@@ -28,7 +28,8 @@ task("amalgamate")
 
 target("qjswrapper")
     set_kind("headeronly")
-    add_headerfiles("include/qjswrapper.hpp")
+    add_headerfiles("include/(qjswrapper.hpp)")
+    add_packages("quickjs", {public = true})
 
 target("unit-tests")
     set_kind("binary")
