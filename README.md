@@ -26,7 +26,7 @@ int main() {
     auto global = engine.global();
 
     // Register C++ functions to JavaScript
-    global.set("add", [](int a, int b) { return a + b; });
+    global.set_function("add", [](int a, int b) { return a + b; });
 
     // Execute JavaScript code
     auto result = engine.eval("add(10, 5)", "main.js");
@@ -52,8 +52,8 @@ int main() {
     auto config = engine.make_object();
     
     // Set properties
-    config.set("theme", "dark")
-          .set("version", "1.0.4", qjs::Prop::ReadOnly); // Read-only property
+    config.set_variable("theme", "dark")
+          .set_constant("version", "1.0.4");
     
     engine.global().set("config", config);
     
@@ -116,8 +116,8 @@ int main() {
     qjs::Engine engine;
     
     auto my_module = engine.define_module("math_utils");
-    my_module.set("PI", 3.14159);
-    my_module.set("square", [](double x) { return x * x; });
+    my_module.set_constant("PI", 3.14159);
+    my_module.set_function("square", [](double x) { return x * x; });
     
     // Use in JavaScript (requires eval_module)
     engine.eval(R"(
