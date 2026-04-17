@@ -26,7 +26,7 @@ int main() {
 
     // 3. Compile the module into bytecode
     // We pass 'true' because this is an ES6 module
-    auto compiled_result = engine.compile_file_to_bytecode(module_filename, qjs::EvalMode::Module);
+    auto compiled_result = engine.compile_file_to_bytecode(module_filename, true, true, qjs::EvalMode::Module);
 
     if (!compiled_result) {
         const auto& err = compiled_result.error();
