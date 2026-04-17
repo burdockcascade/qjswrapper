@@ -12,7 +12,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - name: Regenerate Header
-        run: python tools/amalgamate.py src/main/qjswrapper.hpp include/qjswrapper.hpp src/main
+        run: python tools/amalgamate.py srcqjswrapper.hpp include/qjswrapper.hpp src
       - name: Check for Changes
         run: git diff --exit-code include/qjswrapper.hpp
   windows:
