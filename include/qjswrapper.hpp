@@ -8,7 +8,6 @@
 #include <filesystem>
 #include <fstream>
 #include <functional>
-#include <iostream>
 #include <memory>
 #include <quickjs.h>
 #include <string>
