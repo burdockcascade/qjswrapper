@@ -118,4 +118,18 @@ namespace qjs {
         }
     };
 
+    template <typename T>
+    T get_prop(JSContext* ctx, const JSValue obj, const char* prop_name) {
+        JSValue val = JS_GetPropertyStr(ctx, obj, prop_name);
+        T result = converter<T>::get(ctx, val);
+        JS_FreeValue(ctx, val);
+        return result;
+    }
+
+    template <typename T>
+    void set_prop(JSContext* ctx, const JSValue obj, const char* prop_name, T&& val) {
+        const Value js_val = converter<std::decay_t<T>>::put(ctx, std::forward<T>(val));
+        JS_SetPropertyStr(ctx, obj, prop_name, JS_DupValue(ctx, js_val.get()));
+    }
+
 } // namespace qjs
