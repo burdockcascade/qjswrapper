@@ -11,10 +11,14 @@ jobs:
     timeout-minutes: 1
     steps:
       - uses: actions/checkout@v6
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
       - name: Regenerate Header
-        run: python tools/amalgamate.py src/qjswrapper.hpp include/qjswrapper.hpp src
+        run: python tools/amalgamate.py src/engine.hpp include/qjswrap.hpp src
       - name: Check for Changes
-        run: git diff --exit-code include/qjswrapper.hpp
+        run: git diff --exit-code include/qjswrap.hpp
   windows:
     runs-on: windows-latest
     needs: check-single-header
