@@ -1,0 +1,2 @@
+# QJSWrapper
+qjswrapper is a C++ wrapper library designed to integrate and interact with QuickJS, a lightweight and embeddable JavaScript engine. The project provides a modern, high-level C++ interface to manage JavaScript contexts, objects, classes, and values seamlessly within C++ applications.
