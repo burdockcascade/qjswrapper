@@ -314,7 +314,7 @@ namespace qjs {
         [[nodiscard]] bool is_error() const     { return JS_IsError(val); }
         [[nodiscard]] bool is_exception() const { return JS_IsException(val); }
 
-        [[nodiscard]] Value call(const std::vector<Value>& args = {}, const Value& this_obj = Value()) const {
+        [[nodiscard]] Value call(const std::vector<Value>& args, const Value& this_obj) const {
             std::vector<JSValue> raw_args;
             raw_args.reserve(args.size());
             for (const auto& arg : args) {
@@ -323,6 +323,10 @@ namespace qjs {
 
             const JSValue result = JS_Call(ctx, val, this_obj.get(), static_cast<int>(raw_args.size()), raw_args.data());
             return {ctx, result};
+        }
+
+        [[nodiscard]] Value call(const std::vector<Value>& args = {}) const {
+            return call(args, Value{});
         }
 
         static Value create_object(JSContext* ctx) {
