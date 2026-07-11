@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 4.2)
+cmake_minimum_required(VERSION 3.25)
 project(qjswrapper LANGUAGES CXX)
 
 option(QJSWRAPPER_BUILD_EXAMPLES "Build qjswrapper examples" ${PROJECT_IS_TOP_LEVEL})
