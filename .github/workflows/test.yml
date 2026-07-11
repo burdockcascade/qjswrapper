@@ -3,7 +3,19 @@ concurrency:
   group: Unit Tests
   cancel-in-progress: false
 
-on: [push, pull_request]
+on:
+  push:
+    paths:
+      - src
+      - examples
+      - include
+      - tests
+  pull_request:
+    paths:
+      - src
+      - examples
+      - include
+      - tests
 
 jobs:
   check-single-header:
