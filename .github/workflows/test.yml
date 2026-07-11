@@ -1,21 +1,9 @@
-name: Unit Tests
+name: Tests
 concurrency:
-  group: Unit Tests
+  group: Tests
   cancel-in-progress: false
 
-on:
-  push:
-    paths:
-      - src
-      - examples
-      - include
-      - tests
-  pull_request:
-    paths:
-      - src
-      - examples
-      - include
-      - tests
+on: [push, pull_request]
 
 jobs:
   check-single-header:
@@ -28,9 +16,9 @@ jobs:
         with:
           python-version: '3.x'
       - name: Regenerate Header
-        run: python tools/amalgamate.py src/engine.hpp include/qjswrap.hpp src
+        run: python tools/amalgamate.py src/engine.hpp include/qjswrapper.hpp src
       - name: Check for Changes
-        run: git diff --exit-code include/qjswrap.hpp
+        run: git diff --exit-code include/qjswrapper.hpp
   windows:
     runs-on: windows-latest
     needs: check-single-header
