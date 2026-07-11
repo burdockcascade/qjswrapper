@@ -30,7 +30,7 @@ jobs:
       - name: Build
         run: xmake -y
       - name: Run Unit Tests
-        run: xmake run unit-tests
+        run: xmake run tests
   mac:
     runs-on: macos-latest
     needs: check-single-header
@@ -50,7 +50,7 @@ jobs:
       - name: Build
         run: xmake -y
       - name: Run Unit Tests
-        run: xmake run unit-tests
+        run: xmake run tests
   linux:
     runs-on: ubuntu-latest
     needs: check-single-header
@@ -72,4 +72,4 @@ jobs:
       - name: Build
         run: xmake -y
       - name: Run Unit Tests
-        run: xmake run unit-tests
+        run: xmake run tests
