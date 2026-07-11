@@ -1,7 +1,7 @@
 #include <string>
 #include <raylib.h>
 #include <print>
-#include "../include/qjswrap.hpp"
+#include "../include/qjswrapper.hpp"
 
 void make_raylib_module(qjs::Engine &engine) {
 

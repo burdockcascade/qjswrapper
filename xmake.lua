@@ -11,7 +11,7 @@ task("amalgamate")
         local python = is_host("windows") and ".venv/Scripts/python.exe" or "python3"
 
         local entry = "src/engine.hpp"
-        local output = "include/qjswrap.hpp"
+        local output = "include/qjswrapper.hpp"
         local script = "tools/amalgamate.py"
 
         print("Running custom amalgamation script...")

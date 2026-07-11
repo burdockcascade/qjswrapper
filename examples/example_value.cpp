@@ -1,5 +1,5 @@
 #include <iostream>
-#include "../include/qjswrap.hpp"
+#include "../include/qjswrapper.hpp"
 
 int main() {
     qjs::Engine engine;

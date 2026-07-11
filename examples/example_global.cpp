@@ -1,6 +1,6 @@
 #include <iostream>
 #include <print>
-#include "../include/qjswrap.hpp"
+#include "../include/qjswrapper.hpp"
 
 static JSValue nativeConsoleLog(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
     for (int i = 0; i < argc; ++i) {
