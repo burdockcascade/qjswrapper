@@ -10,7 +10,7 @@ qjswrapper is a C++ wrapper library designed to integrate and interact with Quic
 #include <string>
 #include <raylib.h>
 #include <print>
-#include "../include/qjswrap.hpp"
+#include "qjswrapper.hpp"
 
 void make_raylib_module(qjs::Engine &engine) {
 
