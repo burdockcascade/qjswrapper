@@ -34,8 +34,19 @@ FetchContent_Declare(
         GIT_TAG        6.0
 )
 
-# Populate and make the targets available
-FetchContent_MakeAvailable(quickjs-ng Catch2 raylib)
+# -----------------------------------------------------------------------------
+# Populate targets selectively
+# -----------------------------------------------------------------------------
+
+FetchContent_MakeAvailable(quickjs-ng)
+
+if(QJSWRAPPER_BUILD_TESTS)
+    FetchContent_MakeAvailable(Catch2)
+endif()
+
+if(QJSWRAPPER_BUILD_EXAMPLES)
+    FetchContent_MakeAvailable(raylib)
+endif()
 
 # -----------------------------------------------------------------------------
 # Custom Target: Amalgamate task
