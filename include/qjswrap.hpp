@@ -33,19 +33,6 @@
 
 
 
-       // FIX: Added for std::strlen and std::memcpy
-  // FIX: Added for thread safety
-         // FIX: Added for thread safety
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -228,7 +215,6 @@ namespace qjs {
                 false
             );
 
-            // FIX: Safely handle QuickJS allocation failures
             if (JS_IsException(data_obj)) {
                 delete func_ptr;
                 throw std::runtime_error("qjs::Value error: Failed to allocate ArrayBuffer for closure.");
@@ -304,7 +290,6 @@ namespace qjs {
                     JS_FreeCString(ctx, cstr);
                     return str;
                 } else {
-                    // FIX: Clear context exception to prevent dangling JS errors
                     JS_FreeValue(ctx, JS_GetException(ctx));
                 }
             } else if constexpr (std::is_same_v<Decayed, std::string_view>) {
@@ -314,7 +299,6 @@ namespace qjs {
                     std::string_view sv(cstr, len);
                     return sv;
                 } else {
-                    // FIX: Clear context exception to prevent dangling JS errors
                     JS_FreeValue(ctx, JS_GetException(ctx));
                 }
             } else if constexpr (std::is_class_v<Decayed>) {
@@ -354,7 +338,7 @@ namespace qjs {
         [[nodiscard]] bool is_error() const     { return JS_IsError(val); }
         [[nodiscard]] bool is_exception() const { return JS_IsException(val); }
 
-        [[nodiscard]] Value call(const std::vector<Value>& args = {}, const Value& this_obj = Value()) const {
+        [[nodiscard]] Value call(const std::vector<Value>& args, const Value& this_obj) const {
             std::vector<JSValue> raw_args;
             raw_args.reserve(args.size());
             for (const auto& arg : args) {
@@ -363,6 +347,10 @@ namespace qjs {
 
             const JSValue result = JS_Call(ctx, val, this_obj.get(), static_cast<int>(raw_args.size()), raw_args.data());
             return {ctx, result};
+        }
+
+        [[nodiscard]] Value call(const std::vector<Value>& args = {}) const {
+            return call(args, Value{});
         }
 
         static Value create_object(JSContext* ctx) {
@@ -441,7 +429,6 @@ namespace qjs {
 
     namespace detail {
 
-        // 2. Trampolines mapping JS calls back to C++ pointers
         template <typename T>
         JSValue class_constructor_dispatcher(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst* argv) {
             if (JS_IsUndefined(new_target)) {
@@ -452,7 +439,6 @@ namespace qjs {
             std::vector<std::function<T*(JSContext*, int, JSValueConst*)>> ctors;
             JSClassID class_id = 0;
 
-            // FIX: Thread-safe read of registered constructors and class ID
             {
                 std::shared_lock lock(JSClassInfo<T>::mutex);
                 if (JSClassInfo<T>::constructors.contains(rt)) {
@@ -564,8 +550,6 @@ namespace qjs {
             }
             return JS_UNDEFINED;
         }
-
-        // --- NEW: Structures and Trampolines for Getter/Setter Methods ---
 
         // Container object to capture member function pointers together
         template <typename T, typename GetterR, typename SetterArgs>
@@ -761,7 +745,6 @@ namespace qjs {
         ClassBuilder& add_constructor() {
             JSRuntime* rt = JS_GetRuntime(ctx);
 
-            // FIX: Thread-safe push of the constructor mapping
             {
                 std::unique_lock lock(detail::JSClassInfo<T>::mutex);
                 detail::JSClassInfo<T>::constructors[rt].push_back([](JSContext* c, int argc, JSValueConst* argv) -> T* {
@@ -808,7 +791,6 @@ namespace qjs {
                 false
             );
 
-            // FIX: Graceful handling of QuickJS memory allocation exception
             if (JS_IsException(data_obj)) {
                 delete mem_ptr;
                 throw std::runtime_error("ClassBuilder: Failed to allocate ArrayBuffer for property.");
@@ -842,7 +824,6 @@ namespace qjs {
                 false
             );
 
-            // FIX: Graceful handling of QuickJS memory allocation exception
             if (JS_IsException(data_obj)) {
                 delete methods;
                 throw std::runtime_error("ClassBuilder: Failed to allocate ArrayBuffer for method property.");
@@ -875,7 +856,6 @@ namespace qjs {
                 false
             );
 
-            // FIX: Graceful handling of QuickJS memory allocation exception
             if (JS_IsException(data_obj)) {
                 delete mem_ptr;
                 throw std::runtime_error("ClassBuilder: Failed to allocate ArrayBuffer for method.");
@@ -905,7 +885,6 @@ namespace qjs {
             JSRuntime* rt = JS_GetRuntime(ctx);
             JSClassID class_id = 0;
 
-            // FIX: Thread-safe lookup
             {
                 std::shared_lock lock(detail::JSClassInfo<T>::mutex);
                 if (detail::JSClassInfo<T>::ids.contains(rt)) {
@@ -934,28 +913,18 @@ namespace qjs {
 } // namespace qjs
 
 
-
-
-
-
-
-
- // FIX: Added for thread safety
-
-
 namespace qjs {
 
     namespace detail {
         // QuickJS native modules use a C callback for initialization.
         // We map the module definition pointer to our captured C++ lambdas and values.
         struct ModuleRegistry {
-            static inline std::mutex mutex; // FIX: Protects global module initialization state
+            static inline std::mutex mutex;
             static inline std::unordered_map<JSModuleDef*, std::vector<std::function<void(JSContext*, JSModuleDef*)>>> inits;
 
             static int init_trampoline(JSContext* ctx, JSModuleDef* m) {
                 std::vector<std::function<void(JSContext*, JSModuleDef*)>> actions;
 
-                // FIX: Safely extract and remove the initialization actions
                 {
                     std::unique_lock lock(mutex);
                     auto it = inits.find(m);
@@ -992,18 +961,14 @@ namespace qjs {
         ~ModuleBuilder() {
             if (!ctx) return;
 
-            // 1. Create the native module
             JSModuleDef* m = JS_NewCModule(ctx, name.c_str(), detail::ModuleRegistry::init_trampoline);
             if (!m) return;
 
-            // 2. Transfer our actions into the global static registry
-            // FIX: Thread-safe insertion
             {
                 std::unique_lock lock(detail::ModuleRegistry::mutex);
                 detail::ModuleRegistry::inits[m] = std::move(init_actions);
             }
 
-            // 3. Declare the export names to the engine (Required before init is called)
             for (const auto& exp : exports) {
                 JS_AddModuleExport(ctx, m, exp.c_str());
             }
@@ -1188,7 +1153,6 @@ namespace qjs {
             JSClassID active_id = 0;
             const char* class_name_ptr = nullptr;
 
-            // FIX: Thread-safe write/allocation of the class ID
             {
                 std::unique_lock lock(detail::JSClassInfo<T>::mutex);
                 if (detail::JSClassInfo<T>::ids.find(rt) == detail::JSClassInfo<T>::ids.end()) {
@@ -1209,7 +1173,6 @@ namespace qjs {
                 // Set up the finalizer to automatically delete the mapped C++ object
                 def.finalizer = [](JSRuntime* runtime_ptr, JSValue val) {
                     JSClassID class_id = 0;
-                    // FIX: Thread-safe read during GC
                     {
                         std::shared_lock lock(detail::JSClassInfo<T>::mutex);
                         if (detail::JSClassInfo<T>::ids.contains(runtime_ptr)) {
@@ -1226,7 +1189,6 @@ namespace qjs {
                 JS_NewClass(rt, active_id, &def);
                 registered_classes.insert(active_id);
 
-                // FIX: Thread-safe clear
                 {
                     std::unique_lock lock(detail::JSClassInfo<T>::mutex);
                     detail::JSClassInfo<T>::constructors[rt].clear();
