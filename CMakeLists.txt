@@ -50,6 +50,9 @@ if(QJSWRAPPER_BUILD_TESTS)
             GIT_REPOSITORY https://github.com/catchorg/Catch2.git
             GIT_TAG        v3.4.0
     )
+    set(CATCH_BUILD_TESTING OFF CACHE BOOL "" FORCE) 
+    set(CATCH_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+    set(CATCH_BUILD_EXTRA_TESTS OFF CACHE BOOL "" FORCE)
     FetchContent_MakeAvailable(Catch2)
 
     # Explicitly listing sources is safer and more reliable than file(GLOB)
