@@ -17,7 +17,7 @@
 #include "class.hpp"
 #include "module.hpp"
 
-namespace qjs {
+namespace qjswrapper {
 
     enum class EvalType {
         Global,

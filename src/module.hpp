@@ -11,7 +11,7 @@
 
 #include "value.hpp"
 
-namespace qjs {
+namespace qjswrapper {
 
     namespace detail {
         // QuickJS native modules use a C callback for initialization.

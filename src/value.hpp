@@ -15,7 +15,7 @@
 #include <shared_mutex>
 #include <mutex>
 
-namespace qjs {
+namespace qjswrapper {
 
     namespace detail {
         // Thread-safe class info registry

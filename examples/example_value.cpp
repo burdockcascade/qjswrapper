@@ -1,9 +1,9 @@
 #include <iostream>
-#include "../include/qjswrapper.hpp"
+#include "../src/qjswrapper.hpp"
 
 int main() {
-    qjs::Engine engine;
-    qjs::Value global = engine.global();
+    qjswrapper::Engine engine;
+    qjswrapper::Value global = engine.global();
 
     // 1. Setup environment
     std::ignore = engine.eval(R"(
@@ -13,11 +13,11 @@ int main() {
     )");
 
     // 2. Fetch the function
-    qjs::Value greet_func = global.get_property("greet_user");
+    qjswrapper::Value greet_func = global.get_property("greet_user");
 
     // 3. Call the function using our ultra-clean high-level factories
     if (greet_func.is_function()) {
-        const qjs::Value result = greet_func.call({
+        const qjswrapper::Value result = greet_func.call({
             engine.make_value("Alice"),
             engine.make_value(30)
         });
@@ -29,7 +29,7 @@ int main() {
     }
 
     // 4. Build a JS Object entirely in C++
-    qjs::Value my_config = engine.make_object();
+    qjswrapper::Value my_config = engine.make_object();
     my_config.set_variable("resolution", "1080p");
     my_config.set_variable("fps", 60);
     my_config.set_variable("fullscreen", true);

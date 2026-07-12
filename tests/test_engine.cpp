@@ -1,8 +1,8 @@
 #include <catch2/catch_all.hpp>
-#include "../src/engine.hpp"
+#include "../src/qjswrapper.hpp"
 
 TEST_CASE("Engine Lifecycle and Evaluation", "[engine]") {
-    qjs::Engine engine;
+    qjswrapper::Engine engine;
 
     SECTION("Basic script evaluation returns stringified result") {
         auto result = engine.eval("1 + 2");
@@ -27,7 +27,7 @@ TEST_CASE("Engine Lifecycle and Evaluation", "[engine]") {
 }
 
 TEST_CASE("Engine Value Factories", "[engine]") {
-    qjs::Engine engine;
+    qjswrapper::Engine engine;
 
     SECTION("Factory methods create correct types") {
         auto val_int = engine.make_value(10);

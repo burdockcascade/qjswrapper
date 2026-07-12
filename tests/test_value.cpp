@@ -1,30 +1,30 @@
 #include <catch2/catch_all.hpp>
-#include "../src/engine.hpp"
+#include "../src/qjswrapper.hpp"
 
 TEST_CASE("Value Type Conversions", "[value]") {
-    qjs::Engine engine;
+    qjswrapper::Engine engine;
 
     SECTION("Integer conversion") {
-        qjs::Value v = engine.make_value(123);
+        qjswrapper::Value v = engine.make_value(123);
         CHECK(v.is_number());
         CHECK(v.as<int>() == 123);
     }
 
     SECTION("String conversion") {
-        qjs::Value v = engine.make_value("QuickJS");
+        qjswrapper::Value v = engine.make_value("QuickJS");
         CHECK(v.is_string());
         CHECK(v.as<std::string>() == "QuickJS");
     }
 
     SECTION("Boolean conversion") {
-        qjs::Value v = engine.make_value(true);
+        qjswrapper::Value v = engine.make_value(true);
         CHECK(v.is_bool());
         CHECK(v.as<bool>() == true);
     }
 }
 
 TEST_CASE("Value Property Management", "[value]") {
-    qjs::Engine engine;
+    qjswrapper::Engine engine;
     auto obj = engine.make_object();
 
     SECTION("Setting and getting variables") {
@@ -52,19 +52,19 @@ TEST_CASE("Value Property Management", "[value]") {
 }
 
 TEST_CASE("Value Resource Management (Rule of Five)", "[value]") {
-    qjs::Engine engine;
+    qjswrapper::Engine engine;
 
     SECTION("Move semantics") {
-        qjs::Value v1 = engine.make_value("move_me");
-        qjs::Value v2 = std::move(v1);
+        qjswrapper::Value v1 = engine.make_value("move_me");
+        qjswrapper::Value v2 = std::move(v1);
 
         CHECK(v1.is_undefined());
         CHECK(v2.as<std::string>() == "move_me");
     }
 
     SECTION("Copy semantics (JS_DupValue)") {
-        qjs::Value v1 = engine.make_value("copy_me");
-        qjs::Value v2 = v1; // Copy constructor
+        qjswrapper::Value v1 = engine.make_value("copy_me");
+        qjswrapper::Value v2 = v1; // Copy constructor
 
         CHECK(v1.as<std::string>() == "copy_me");
         CHECK(v2.as<std::string>() == "copy_me");
@@ -72,7 +72,7 @@ TEST_CASE("Value Resource Management (Rule of Five)", "[value]") {
 }
 
 TEST_CASE("Value Type Checkers (is_*)", "[value]") {
-    qjs::Engine engine;
+    qjswrapper::Engine engine;
 
     SECTION("is_number") {
         CHECK(engine.make_value(42).is_number());
@@ -103,8 +103,8 @@ TEST_CASE("Value Type Checkers (is_*)", "[value]") {
     }
 
     SECTION("is_undefined") {
-        qjs::Value v = engine.make_value(42);
-        qjs::Value moved = std::move(v);
+        qjswrapper::Value v = engine.make_value(42);
+        qjswrapper::Value moved = std::move(v);
 
         CHECK(v.is_undefined());
         CHECK_FALSE(moved.is_undefined());

@@ -6,23 +6,9 @@ concurrency:
 on: [push, pull_request]
 
 jobs:
-  check-single-header:
-    runs-on: ubuntu-latest
-    timeout-minutes: 1
-    steps:
-      - uses: actions/checkout@v6
-      - name: Set up Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: '3.x'
-      - name: Regenerate Header
-        run: python tools/amalgamate.py src/engine.hpp include/qjswrapper.hpp src
-      - name: Check for Changes
-        run: git diff --exit-code include/qjswrapper.hpp
 
   windows:
     runs-on: windows-latest
-    needs: check-single-header
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
@@ -35,7 +21,6 @@ jobs:
 
   mac:
     runs-on: macos-latest
-    needs: check-single-header
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
@@ -48,7 +33,6 @@ jobs:
 
   linux:
     runs-on: ubuntu-latest
-    needs: check-single-header
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6

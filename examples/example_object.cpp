@@ -1,22 +1,22 @@
 #include <print>
-#include "../include/qjswrapper.hpp"
+#include "../src/qjswrapper.hpp"
 
 int main() {
-    qjs::Engine engine;
-    qjs::Value global = engine.global();
+    qjswrapper::Engine engine;
+    qjswrapper::Value global = engine.global();
 
     // ==========================================
     // 1. Creating a New Object in C++
     // ==========================================
 
     // Create the main object
-    qjs::Value player = engine.make_object()
+    qjswrapper::Value player = engine.make_object()
         .set_variable("name", "Hero")
         .set_variable("level", 1)
         .set_constant("id", 9999);
 
     // Create a nested object for coordinates
-    qjs::Value position = engine.make_object()
+    qjswrapper::Value position = engine.make_object()
         .set_variable("x", 10.5)
         .set_variable("y", 20.0);
 
@@ -42,7 +42,7 @@ int main() {
     // ==========================================
 
     // Fetch the modified object
-    qjs::Value updated_player = global.get_property("Player1");
+    qjswrapper::Value updated_player = global.get_property("Player1");
 
     if (updated_player.is_object()) {
         // Read the new status added by JS
@@ -51,7 +51,7 @@ int main() {
         }
 
         // Read the nested position object
-        qjs::Value updated_pos = updated_player.get_property("pos");
+        qjswrapper::Value updated_pos = updated_player.get_property("pos");
         if (updated_pos.is_object()) {
             if (auto x = updated_pos.get_property("x").as<double>()) {
                 std::println("New X Position: {}", *x);

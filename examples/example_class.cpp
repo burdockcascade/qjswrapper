@@ -1,4 +1,4 @@
-#include "../include/qjswrapper.hpp"
+#include "../src/qjswrapper.hpp"
 
 struct Vector2 {
     float x;
@@ -13,7 +13,7 @@ struct Vector2 {
 };
 
 int main() {
-    qjs::Engine engine;
+    qjswrapper::Engine engine;
 
     // The fluent API in action:
     engine.make_class<Vector2>("Vector2")
