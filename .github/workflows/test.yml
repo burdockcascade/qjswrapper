@@ -31,7 +31,7 @@ jobs:
       - name: Build
         run: cmake --build build --config Release
       - name: Run Unit Tests
-        run: .\build\tests\Release\unit-tests.exe
+        run: .\build\Release\unit-tests.exe
 
   mac:
     runs-on: macos-latest
