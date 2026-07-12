@@ -63,4 +63,4 @@ jobs:
       - name: Build
         run: cmake --build build --config Release
       - name: Run Unit Tests
-        run: ./build/tests/unit-tests
+        run: ./build/Release/unit-tests
