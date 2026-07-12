@@ -1,6 +1,11 @@
 cmake_minimum_required(VERSION 3.28)
 project(qjswrapper LANGUAGES CXX)
 
+# Require C++23 standard
+set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
 option(QJSWRAPPER_BUILD_EXAMPLES "Build qjswrapper examples" ${PROJECT_IS_TOP_LEVEL})
 option(QJSWRAPPER_BUILD_TESTS "Build qjswrapper unit tests" ${PROJECT_IS_TOP_LEVEL})
 option(QJSWRAPPER_INCLUDE_QUICKJS "Fetch and build QuickJS dependency internally" ON)
