@@ -22,21 +22,25 @@ if(QJSWRAPPER_INCLUDE_QUICKJS)
     FetchContent_MakeAvailable(quickjs-ng)
 endif()
 
-add_library(qjswrapper INTERFACE)
+add_library(qjswrapper STATIC
+        src/value.cpp
+        src/module.cpp
+        src/engine.cpp
+)
 
-target_include_directories(qjswrapper INTERFACE
+target_include_directories(qjswrapper PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
         $<INSTALL_INTERFACE:include>
 )
 
 # Modern target-based C++ standard enforcement
-target_compile_features(qjswrapper INTERFACE cxx_std_23)
+target_compile_features(qjswrapper PUBLIC cxx_std_23)
 
 # Only link the internal qjs target if it was fetched
 if(QJSWRAPPER_INCLUDE_QUICKJS)
-    target_link_libraries(qjswrapper INTERFACE qjs)
+    target_link_libraries(qjswrapper PUBLIC qjs)
 else()
-    target_compile_definitions(qjswrapper INTERFACE QJSWRAPPER_EXTERNAL_QUICKJS)
+    target_compile_definitions(qjswrapper PUBLIC QJSWRAPPER_EXTERNAL_QUICKJS)
 endif()
 
 # -----------------------------------------------------------------------------

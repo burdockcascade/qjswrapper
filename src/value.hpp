@@ -72,44 +72,19 @@ namespace qjswrapper {
     class Value {
     public:
         Value() = default;
-        Value(JSContext* ctx, const JSValue val) : ctx(ctx), val(val) {}
+        Value(JSContext* ctx, const JSValue val);
 
         template <JSSupportedType T>
         Value(JSContext* ctx, T&& v) : ctx(ctx) {
             val = create_js_value(ctx, std::forward<T>(v));
         }
 
-        ~Value() {
-            if (ctx) {
-                JS_FreeValue(ctx, val);
-            }
-        }
+        ~Value();
 
-        Value(const Value& other) : ctx(other.ctx) {
-            val = JS_DupValue(ctx, other.val);
-        }
-
-        Value& operator=(const Value& other) {
-            if (this != &other) {
-                if (ctx) JS_FreeValue(ctx, val);
-                ctx = other.ctx;
-                val = JS_DupValue(ctx, other.val);
-            }
-            return *this;
-        }
-
-        Value(Value&& other) noexcept
-            : ctx(std::exchange(other.ctx, nullptr)),
-              val(std::exchange(other.val, JS_UNDEFINED)) {}
-
-        Value& operator=(Value&& other) noexcept {
-            if (this != &other) {
-                if (ctx) JS_FreeValue(ctx, val);
-                ctx = std::exchange(other.ctx, nullptr);
-                val = std::exchange(other.val, JS_UNDEFINED);
-            }
-            return *this;
-        }
+        Value(const Value& other);
+        Value& operator=(const Value& other);
+        Value(Value&& other) noexcept;
+        Value& operator=(Value&& other) noexcept;
 
         // Converts native C++ types OR existing Values into QuickJS JSValues
         template <typename T>
@@ -169,11 +144,7 @@ namespace qjswrapper {
             return *this;
         }
 
-        Value& set_cfunction(const std::string_view name, JSCFunction* func, const int length = 0) {
-            JSValue js_func = JS_NewCFunction(ctx, func, name.data(), length);
-            JS_SetPropertyStr(ctx, val, name.data(), js_func);
-            return *this;
-        }
+        Value& set_cfunction(const std::string_view name, JSCFunction* func, const int length = 0);
 
         template <typename F>
         Value& set_function(const std::string_view name, F&& func) {
@@ -229,21 +200,9 @@ namespace qjswrapper {
 
         // --- Retrieval & Checking ---
 
-        [[nodiscard]] Value get_property(const std::string_view name) const {
-            return {ctx, JS_GetPropertyStr(ctx, val, name.data())};
-        }
-
-        [[nodiscard]] bool has_property(const std::string_view name) const {
-            const JSAtom atom = JS_NewAtomLen(ctx, name.data(), name.size());
-            if (atom == JS_ATOM_NULL) return false;
-            const int has_prop = JS_HasProperty(ctx, val, atom);
-            JS_FreeAtom(ctx, atom);
-            return has_prop == 1;
-        }
-
-        [[nodiscard]] Value get_element(const uint32_t index) const {
-            return {ctx, JS_GetPropertyUint32(ctx, val, index)};
-        }
+        [[nodiscard]] Value get_property(std::string_view name) const;
+        [[nodiscard]] bool has_property(std::string_view name) const;
+        [[nodiscard]] Value get_element(uint32_t index) const;
 
         template <typename T>
         [[nodiscard]] std::optional<T> as() const {
@@ -303,39 +262,22 @@ namespace qjswrapper {
         }
 
         // --- Type Checking ---
-        [[nodiscard]] bool is_undefined() const { return JS_IsUndefined(val); }
-        [[nodiscard]] bool is_null() const      { return JS_IsNull(val); }
-        [[nodiscard]] bool is_bool() const      { return JS_IsBool(val); }
-        [[nodiscard]] bool is_number() const    { return JS_IsNumber(val); }
-        [[nodiscard]] bool is_string() const    { return JS_IsString(val); }
-        [[nodiscard]] bool is_object() const    { return JS_IsObject(val); }
-        [[nodiscard]] bool is_array() const     { return JS_IsArray(val) == 1; }
-        [[nodiscard]] bool is_function() const  { return JS_IsFunction(ctx, val); }
-        [[nodiscard]] bool is_error() const     { return JS_IsError(val); }
-        [[nodiscard]] bool is_exception() const { return JS_IsException(val); }
+        [[nodiscard]] bool is_undefined() const;
+        [[nodiscard]] bool is_null() const;
+        [[nodiscard]] bool is_bool() const;
+        [[nodiscard]] bool is_number() const;
+        [[nodiscard]] bool is_string() const;
+        [[nodiscard]] bool is_object() const;
+        [[nodiscard]] bool is_array() const;
+        [[nodiscard]] bool is_function() const;
+        [[nodiscard]] bool is_error() const;
+        [[nodiscard]] bool is_exception() const;
 
-        [[nodiscard]] Value call(const std::vector<Value>& args, const Value& this_obj) const {
-            std::vector<JSValue> raw_args;
-            raw_args.reserve(args.size());
-            for (const auto& arg : args) {
-                raw_args.push_back(arg.get());
-            }
+        [[nodiscard]] Value call(const std::vector<Value>& args, const Value& this_obj) const;
+        [[nodiscard]] Value call(const std::vector<Value>& args = {}) const;
 
-            const JSValue result = JS_Call(ctx, val, this_obj.get(), static_cast<int>(raw_args.size()), raw_args.data());
-            return {ctx, result};
-        }
-
-        [[nodiscard]] Value call(const std::vector<Value>& args = {}) const {
-            return call(args, Value{});
-        }
-
-        static Value create_object(JSContext* ctx) {
-            return {ctx, JS_NewObject(ctx)};
-        }
-
-        static Value create_array(JSContext* ctx) {
-            return {ctx, JS_NewArray(ctx)};
-        }
+        static Value create_object(JSContext* ctx);
+        static Value create_array(JSContext* ctx);
 
         [[nodiscard]] JSValue get() const { return val; }
         [[nodiscard]] JSContext* context() const { return ctx; }
