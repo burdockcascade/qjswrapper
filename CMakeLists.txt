@@ -63,8 +63,9 @@ if(QJSWRAPPER_BUILD_TESTS)
             tests/test_value.cpp
     )
 
-    add_executable(unit-tests ${TEST_SOURCES})
-    target_link_libraries(unit-tests PRIVATE
+    add_executable(unit_tests ${TEST_SOURCES})
+
+    target_link_libraries(unit_tests PRIVATE
             qjswrapper
             Catch2::Catch2WithMain
     )
