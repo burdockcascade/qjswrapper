@@ -37,16 +37,20 @@ namespace qjswrapper {
     }
 
     Value& Value::set_cfunction(const std::string_view name, JSCFunction* func, const int length) {
-        JSValue js_func = JS_NewCFunction(ctx, func, name.data(), length);
-        JS_SetPropertyStr(ctx, val, name.data(), js_func);
+        // Fix: Added a null-terminated copy of the string view since QuickJS expects a C-string here
+        std::string name_cstr(name);
+        JSValue js_func = JS_NewCFunction(ctx, func, name_cstr.c_str(), length);
+        JS_SetPropertyStr(ctx, val, name_cstr.c_str(), js_func);
         return *this;
     }
 
-    Value Value::get_property(const std::string_view name) const {
-        return {ctx, JS_GetPropertyStr(ctx, val, name.data())};
+    Value Value::get_property(std::string_view name) const {
+        // Fix: Use null-terminated C-string copy as required by JS_GetPropertyStr
+        std::string name_cstr(name);
+        return {ctx, JS_GetPropertyStr(ctx, val, name_cstr.c_str())};
     }
 
-    bool Value::has_property(const std::string_view name) const {
+    bool Value::has_property(std::string_view name) const {
         const JSAtom atom = JS_NewAtomLen(ctx, name.data(), name.size());
         if (atom == JS_ATOM_NULL) return false;
         const int has_prop = JS_HasProperty(ctx, val, atom);
@@ -54,7 +58,7 @@ namespace qjswrapper {
         return has_prop == 1;
     }
 
-    Value Value::get_element(const uint32_t index) const {
+    Value Value::get_element(uint32_t index) const {
         return {ctx, JS_GetPropertyUint32(ctx, val, index)};
     }
 
@@ -75,7 +79,6 @@ namespace qjswrapper {
         for (const auto& arg : args) {
             raw_args.push_back(arg.get());
         }
-
         const JSValue result = JS_Call(ctx, val, this_obj.get(), static_cast<int>(raw_args.size()), raw_args.data());
         return {ctx, result};
     }
@@ -91,4 +94,4 @@ namespace qjswrapper {
     Value Value::create_array(JSContext* ctx) {
         return {ctx, JS_NewArray(ctx)};
     }
-}
+} // namespace qjswrapper
