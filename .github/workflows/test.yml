@@ -1,7 +1,7 @@
 name: Tests
 concurrency:
   group: Tests
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 on: [push, pull_request]
 
