@@ -288,17 +288,32 @@ namespace qjswrapper {
     };
 
     namespace detail {
+
         template <typename F, typename Traits, std::size_t... I>
         JSValue cpp_closure_trampoline_impl(JSContext* ctx, F* func, int argc, JSValueConst* argv, std::index_sequence<I...>) {
             try {
-                // 1. Extract arguments
-                auto args_tuple = std::make_tuple(
-                    (I < static_cast<std::size_t>(argc) ?
-                        Value(ctx, JS_DupValue(ctx, argv[I])).as<std::tuple_element_t<I, typename Traits::args_tuple>>().value_or(std::tuple_element_t<I, typename Traits::args_tuple>{})
-                        : std::tuple_element_t<I, typename Traits::args_tuple>{})...
-                );
+                // Helper lambda to safely extract a single argument based on index I
+                auto extract_arg = [&]<std::size_t Index>() {
+                    using TargetType = std::tuple_element_t<Index, typename Traits::args_tuple>;
 
-                // 2. Execute the function
+                    // Decayed extraction type: treat string_view/const char* as std::string to ensure copy and safe internal cleanup
+                    using ExtractType = std::conditional_t<
+                        std::is_same_v<TargetType, std::string_view> || std::is_same_v<TargetType, const char*>,
+                        std::string,
+                        TargetType
+                    >;
+
+                    if (Index < static_cast<std::size_t>(argc)) {
+                        return Value(ctx, JS_DupValue(ctx, argv[Index]))
+                            .template as<ExtractType>()
+                            .value_or(TargetType{}); // TargetType{} is convertible to ExtractType
+                    } else {
+                        return TargetType{};
+                    }
+                };
+
+                auto args_tuple = std::make_tuple(extract_arg.template operator()<I>()...);
+
                 JSValue result_val;
                 if constexpr (std::is_void_v<typename Traits::result_type>) {
                     std::apply(*func, args_tuple);
@@ -308,19 +323,7 @@ namespace qjswrapper {
                     result_val = Value::create_js_value(ctx, result);
                 }
 
-                // 3. Cleanup: Free any C-strings allocated for std::string_view or const char*
-                auto free_if_string = [&](auto& arg) {
-                    using ArgType = std::decay_t<decltype(arg)>;
-                    if constexpr (std::is_same_v<ArgType, std::string_view>) {
-                        JS_FreeCString(ctx, arg.data());
-                    } else if constexpr (std::is_same_v<ArgType, const char*>) {
-                        JS_FreeCString(ctx, arg);
-                    }
-                };
-                std::apply([&](auto&... args) { (free_if_string(args), ...); }, args_tuple);
-
                 return result_val;
-
             } catch (const std::exception& e) {
                 return JS_ThrowInternalError(ctx, "%s", e.what());
             }
